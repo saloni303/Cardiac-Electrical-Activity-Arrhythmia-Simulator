@@ -1,5 +1,8 @@
 # ODE-Based Simulation of Cardiac Electrical Activity and Arrhythmia Dynamics Using the FitzHugh–Nagumo Model
 
+> **Cardiac-Electrical-Activity-Arrhythmia-Simulator**  
+> A mathematical simulation of heart cell electrical activity using the FitzHugh–Nagumo (FHN) model. Explore how changing parameters affects cell behaviour, conduction latencies, and arrhythmia-like patterns through interactive graphs. Focused on single-cell and coupled-network mathematical modelling, not clinical diagnosis or medical ECG analysis.
+
 **Stages 1, 2 & 3: Standalone FHN Mathematical Engine, Conduction Network & Arrhythmia Scenario Suite**
 
 ---
