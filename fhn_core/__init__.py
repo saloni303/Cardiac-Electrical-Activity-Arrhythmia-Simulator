@@ -5,6 +5,7 @@ Stage 1: Standalone classical two-variable FitzHugh-Nagumo ODE system.
 Stage 2: Coupled cardiac-cell network simulator.
 Stage 3: Arrhythmia scenario engine.
 Stage 4: Interactive anatomical cardiac visualization.
+Stage 5: Rhythm visualization and activation analysis.
 """
 
 from .model import FHNParameters, fhn_derivatives, compute_vector_field
@@ -47,6 +48,15 @@ from .visualization import (
     extract_animation_frames,
     build_heart_visualization_html,
 )
+from .rhythm_analysis import (
+    EventLogEntry,
+    generate_numerical_event_log,
+    compute_beat_to_beat_intervals,
+    estimate_heart_rate_bpm,
+    detect_missing_events,
+    compute_true_ecg_lead_approximation,
+    compare_with_normal_rhythm,
+)
 
 __all__ = [
     # Stage 1: Single-cell
@@ -88,4 +98,12 @@ __all__ = [
     "map_state_to_color",
     "extract_animation_frames",
     "build_heart_visualization_html",
+    # Stage 5: Rhythm Visualization & Activation Analysis
+    "EventLogEntry",
+    "generate_numerical_event_log",
+    "compute_beat_to_beat_intervals",
+    "estimate_heart_rate_bpm",
+    "detect_missing_events",
+    "compute_true_ecg_lead_approximation",
+    "compare_with_normal_rhythm",
 ]

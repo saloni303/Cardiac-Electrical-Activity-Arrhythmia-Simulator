@@ -252,7 +252,45 @@ To satisfy the requirement that the visualization be driven strictly by the nume
 
 ---
 
-## 9. Comparative Literature Analysis
+## 9. Rhythm Visualization & Activation Analysis (Stage 5)
+
+### 9.1 Multi-Lead Dipole Field Formulation
+In addition to the longitudinal dipole trace $\Phi(t)$, our engine implements a generalized far-field Einthoven limb lead projection:
+$$\vec{P}(t) = \sum_{(i,j) \in \mathcal{E}} g_{ij} [v_j(t) - v_i(t)] (\vec{r}_j - \vec{r}_i)$$
+Projected onto Einthoven Lead II ($60^\circ$ vector from right shoulder to left lower abdomen):
+$$V_{\text{Lead II}}(t) = \vec{P}(t) \cdot \begin{pmatrix} \cos 60^\circ \\ \sin 60^\circ \end{pmatrix} = 0.5 P_x(t) + \frac{\sqrt{3}}{2} P_y(t)$$
+
+#### Physical Source-to-Electrode Assumptions:
+1. **Far-Field Dipole Approximation:** Assumes cardiac dimensions are small compared to boundary distances.
+2. **Homogeneous Isotropic Volume Conductor:** Neglects electrical conductivity jumps across blood ($0.6\text{ S/m}$), myocardium ($0.2\text{ S/m}$), lungs ($0.05\text{ S/m}$), and ribs.
+3. **Quasi-Static Assumption:** Neglects displacement currents (valid for frequencies $< 1\text{ kHz}$).
+4. **Non-Diagnostic:** Educational surrogate only; not a clinical 12-lead diagnostic ECG.
+
+### 9.2 Beat-to-Beat Interval Sequences & Timescale Calibration
+Let $\{t_k\}_{k=1}^K$ denote the sequence of upward threshold crossings ($v_k > 0$) for a monitored chamber. The beat-to-beat cycle length sequence is:
+$$\Delta t_k = t_{k+1} - t_k, \quad k = 1, \dots, K-1$$
+
+Mean cycle length and variability (SDNN analogue) are:
+$$\overline{\Delta t} = \frac{1}{K-1} \sum_{k=1}^{K-1} \Delta t_k, \quad \sigma_{\Delta t} = \sqrt{\frac{1}{K-2} \sum_{k=1}^{K-1} (\Delta t_k - \overline{\Delta t})^2}$$
+
+#### Dimensionless-to-Physical Rate Calibration:
+In standard human electrophysiology, resting cycle length at $\approx 67\text{ BPM}$ is $\approx 900\text{ ms}$. In our calibrated FHN model ($a=0.7, b=0.8, \varepsilon=0.08$), normal pacing interval is $T_{\text{pace}} = 45.0$ model time units. This establishes the physical calibration factor:
+$$\tau_{\text{scale}} = 0.020\text{ s/unit} \quad (1\text{ model time unit} \approx 20\text{ ms})$$
+$$\text{Estimated Heart Rate (BPM)} = \frac{60}{\overline{\Delta t} \times \tau_{\text{scale}}}$$
+If fewer than 2 ventricular activations occur (e.g. Complete AV Block), the software reports $\text{BPM} = 0.0$ (Asystole).
+
+### 9.3 Algorithmic Missing Event Detection
+- **Sinus Pause:** Expected pacing pulses $\{k \cdot T_{\text{pace}}\}$ falling within $[t_{\text{pause\_start}}, t_{\text{pause\_end}}]$ are identified. When no threshold crossing occurs within $\pm 5.0$ units, the impulse is logged as a suppressed sinus event.
+- **AV Conduction Block:** Each atrial activation $t_{\text{atr}}$ is paired with downstream ventricular activations within a physiological conduction window ($[t_{\text{atr}}, t_{\text{atr}} + 28.0]$). If no ventricular activation exists, the event is logged as a dropped downstream beat.
+
+### 9.4 Numerical Activation Event Logging
+Sub-step linear interpolation at the upward threshold crossing ($v=0.0$) logs exact timestamps:
+$$t^* = t_{k-1} + \frac{0.0 - v_{k-1}}{v_k - v_{k-1}} \Delta t$$
+Every event across all 6 compartments records: `Simulation Time`, `Region`, `Node ID`, `Threshold Crossing Voltage`, `Previous Activation Time`, `Interval Since Previous`, and `Conduction Status`.
+
+---
+
+## 10. Comparative Literature Analysis
 
 | Feature | Gonzalez Herrero et al. (2021) | Balakrishnan et al. (2015) | Our Present Implementation |
 |:---|:---|:---|:---|
@@ -262,29 +300,33 @@ To satisfy the requirement that the visualization be driven strictly by the nume
 | **Stability Analysis** | Numerical bifurcation | Phase-locking analysis | Analytical Jacobian + Cardano roots |
 | **Conduction Delay** | Continuous cable PDE | Synthetic phase delays | Emergent ODE conduction latencies |
 | **Arrhythmia Verification**| Spiral wave breakup | Chaotic synchronization | Circus re-entry + AV block failure |
+| **Rhythm Trace** | Point membrane potential | Abstract oscillator phase | Dipole moment projection + Lead II |
+| **Event Logging** | None | Frequency spectrum | Multi-channel numerical event log |
 | **Visualization** | 2D raster heatmaps | Abstract state-space | Interactive Anatomical SVG + Canvas |
 
 ---
 
-## 10. Verification and Test Suite Summary
+## 11. Verification and Test Suite Summary
 
-The entire mathematical engine and visualization suite is rigorously validated by **33 automated unit tests** across 8 modules:
+The entire mathematical engine, network solver, scenario engine, visualization component, and rhythm analysis suite is validated by **47 automated unit tests** across 9 modules:
 
 ```
+tests/test_audit_stage4.py       7 passed  (Deterministic invariance, stimulus suppression, AV block)
 tests/test_equilibrium.py        4 passed  (Cardano accuracy, residuals < 1e-12)
 tests/test_jacobian.py           3 passed  (Analytical vs finite-diff Jacobian < 1e-6)
-tests/test_rk4_solver.py         4 passed  (4th-order convergence: E(h)/E(h/2) ≈ 16.0)
-tests/test_sweeps.py             4 passed  (Hopf condition, fold non-existence)
 tests/test_network.py            5 passed  (Isolated cells, wave delay, AV block, refractoriness)
+tests/test_rhythm_analysis.py    7 passed  (Event log, BPM conversion, missed beats, Lead II dipole)
+tests/test_rk4_solver.py         4 passed  (4th-order convergence: E(h)/E(h/2) ≈ 16.0)
 tests/test_scenarios.py          6 passed  (Normal, tachy, brady, pause, block, honest re-entry)
+tests/test_sweeps.py             4 passed  (Hopf condition, fold non-existence)
 tests/test_visualization.py      7 passed  (Color mapping, frame packing, HTML generation, fidelity)
 ------------------------------------------------------------------------------------------------
-Total:                          33 passed in 7.72s (100% pass rate)
+Total:                          47 passed in 57.04s (100% pass rate)
 ```
 
 ---
 
-## 11. Conclusion
+## 12. Conclusion
 
 The developed software system fulfills all academic and scientific specifications:
 1. The standalone FitzHugh–Nagumo model is preserved as an independent mathematical module.

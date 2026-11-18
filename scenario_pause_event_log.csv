@@ -1,0 +1,13 @@
+Time (u),Region,Node ID,Threshold Crossing (v),Previous Activation (u),Interval (Δt u),Beat #,Conduction Status
+0.67,SAN,0,0.0,-,First Beat,1,Initial Beat / Baseline
+3.11,Atrium,1,0.0,-,First Beat,1,Initial Beat / Baseline
+6.24,AVN,2,0.0,-,First Beat,1,Initial Beat / Baseline
+9.63,His,3,0.0,-,First Beat,1,Initial Beat / Baseline
+12.39,Purkinje,4,0.0,-,First Beat,1,Initial Beat / Baseline
+14.1,Ventricle,5,0.0,-,First Beat,1,Initial Beat / Baseline
+135.66,SAN,0,0.0,0.67,134.99,2,Delayed / Bradycardic
+137.93,Atrium,1,0.0,3.11,134.82,2,Delayed / Bradycardic
+140.82,AVN,2,0.0,6.24,134.58,2,Delayed / Bradycardic
+144.02,His,3,0.0,9.63,134.39,2,Delayed / Bradycardic
+146.71,Purkinje,4,0.0,12.39,134.32,2,Delayed / Bradycardic
+148.4,Ventricle,5,0.0,14.1,134.3,2,Delayed / Bradycardic

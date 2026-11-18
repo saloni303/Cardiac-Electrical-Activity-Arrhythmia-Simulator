@@ -1,0 +1,9 @@
+Time (u),Region,Node ID,Threshold Crossing (v),Previous Activation (u),Interval (Δt u),Beat #,Conduction Status
+0.67,SAN,0,0.0,-,First Beat,1,Initial Beat / Baseline
+2.61,Atrium,1,0.0,-,First Beat,1,Initial Beat / Baseline
+45.67,SAN,0,0.0,0.67,44.99,2,Regular Forward Cascade
+47.53,Atrium,1,0.0,2.61,44.91,2,Regular Forward Cascade
+90.67,SAN,0,0.0,45.67,45.0,3,Regular Forward Cascade
+92.53,Atrium,1,0.0,47.53,45.0,3,Regular Forward Cascade
+135.67,SAN,0,0.0,90.67,45.0,4,Regular Forward Cascade
+137.53,Atrium,1,0.0,92.53,45.0,4,Regular Forward Cascade

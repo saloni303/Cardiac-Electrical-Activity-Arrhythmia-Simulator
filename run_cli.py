@@ -283,14 +283,53 @@ def run_scenario_cli(scenario_name: str, pacing_interval: float = None):
         acts_str = ", ".join(f"{t:.2f}" for t in acts[:5]) + ("..." if len(acts) > 5 else "")
         print(f"   Node {nid:2d} ({name:<10s}): {len(acts):2d} beats at t = [{acts_str}]")
 
-    print(f"\n4. Rhythm Metrics & Comparison against Normal:")
-    if res.mean_cycle_length is not None:
-        print(f"   - Mean Cycle Length:    {res.mean_cycle_length:.2f} time units")
+    # Stage 5: Rhythm Analysis & Activation Metrics
+    from fhn_core.rhythm_analysis import (
+        compute_beat_to_beat_intervals,
+        estimate_heart_rate_bpm,
+        detect_missing_events,
+        generate_numerical_event_log,
+        compute_true_ecg_lead_approximation,
+    )
+
+    hr_data = estimate_heart_rate_bpm(res.mean_cycle_length)
+    b2b_data = compute_beat_to_beat_intervals(res.activations, monitored_node_id=(0 if stype == ScenarioType.REENTRY else 5))
+    missing_data = detect_missing_events(res)
+    event_log = generate_numerical_event_log(res.activations, res.network, threshold=0.0)
+
+    print(f"\n4. Stage 5: Rhythm Analysis & Beat-to-Beat Statistics:")
+    print(f"   - Mean Cycle Length:    {res.mean_cycle_length:.2f} time units" if res.mean_cycle_length else "   - Mean Cycle Length:    N/A (Blocked)")
+    if hr_data["is_meaningful"]:
+        print(f"   - Estimated Heart Rate: {hr_data['bpm']:.1f} BPM ({hr_data['classification']})")
+        print(f"   - Timescale Assumption: 1 model time unit ≈ {hr_data['time_unit_seconds']*1000:.0f} ms")
     else:
-        print(f"   - Mean Cycle Length:    N/A (insufficient beats)")
-    print(f"   - Activation Frequency: {res.activation_frequency:.2f} beats / 100 units")
+        print(f"   - Estimated Heart Rate: 0.0 BPM (Asystole / Complete Block)")
+    if b2b_data["intervals"]:
+        int_str = ", ".join(f"{dt:.2f}" for dt in b2b_data["intervals"][:5])
+        print(f"   - Beat-to-Beat Intervals: [{int_str}]")
+        print(f"   - Interval Variability (SD): {b2b_data['std_interval']:.3f} units (Regular: {b2b_data['is_regular']})")
     print(f"   - Relative to Normal:   {res.comparison_with_normal.get('rate_ratio', 1.0):.2f}x")
     print(f"   - Status Description:   {res.comparison_with_normal.get('status')}")
+
+    if missing_data["missing_sa_impulses"]:
+        print(f"\n   [!] Missing Expected SA Impulses (Sinus Pause):")
+        for m in missing_data["missing_sa_impulses"]:
+            print(f"       * Expected pulse at t = {m['expected_time']} u was suppressed.")
+    if missing_data["missing_downstream_events"]:
+        print(f"\n   [!] Missing Downstream Activations (AV Block):")
+        for m in missing_data["missing_downstream_events"]:
+            print(f"       * Atrial beat #{m['atrial_beat_index']} (t = {m['atrial_time']} u) failed to conduct downstream.")
+
+    # Save event log to CSV
+    import csv
+    csv_file = f"scenario_{norm_name}_event_log.csv"
+    with open(csv_file, "w", newline="", encoding="utf-8") as f:
+        writer = csv.writer(f)
+        writer.writerow(["Time (u)", "Region", "Node ID", "Threshold Crossing (v)", "Previous Activation (u)", "Interval (Δt u)", "Beat #", "Conduction Status"])
+        for entry in event_log:
+            d = entry.to_dict()
+            writer.writerow([d["Time (u)"], d["Region"], d["Node ID"], d["Threshold Crossing (v)"], d["Previous Activation (u)"], d["Interval (Δt u)"], d["Beat #"], d["Conduction Status"]])
+    print(f"   - Numerical Event Log Saved: {csv_file} ({len(event_log)} events recorded)")
 
     if stype == ScenarioType.REENTRY:
         print(f"\n5. Re-entry Validation:")

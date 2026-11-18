@@ -3,7 +3,7 @@
 > **Cardiac-Electrical-Activity-Arrhythmia-Simulator**  
 > A mathematical simulation of heart cell electrical activity using the FitzHugh–Nagumo (FHN) model. Explore how changing parameters affects cell behaviour, conduction latencies, and arrhythmia-like patterns through interactive graphs and an anatomical heart visualizer. Focused on single-cell and coupled-network mathematical modelling, not clinical diagnosis or medical ECG analysis.
 
-**Stages 1, 2, 3 & 4: Standalone FHN Mathematical Engine, Conduction Network, Arrhythmia Scenario Suite & Interactive Anatomical Heart Visualization**
+**Stages 1, 2, 3, 4 & 5: Standalone FHN Mathematical Engine, Conduction Network, Arrhythmia Scenario Suite, Interactive Anatomical Heart & Rhythm Analysis Panel**
 
 ---
 
@@ -14,11 +14,12 @@ This repository contains an academic research simulation suite developed to inve
 - **Stage 2 (Coupled Cardiac Conduction Network):** Explicit multi-compartment discrete conduction network extending the single-cell model through gap-junction diffusion across six primary functional regions: **Sinoatrial (SA) node, Atrial myocardium, Atrioventricular (AV) node, Bundle of His, Purkinje network, and Ventricular myocardium**.
 - **Stage 3 (Arrhythmia Scenario Engine):** Numerically integrated simulation suite modeling six distinct physiological and pathological rhythm scenarios with live dipole rhythm trace projection.
 - **Stage 4 (Interactive Anatomical Heart Visualization):** High-performance 60 FPS HTML5/SVG/Canvas visualizer rendering the anatomical human heart, driven directly by continuous numerical ODE states ($v_i, w_i$) without pre-recorded animations.
+- **Stage 5 (Rhythm Visualization & Activation Analysis):** Full rhythm analysis panel featuring multi-lead field projections, separate $v(t)$ and $w(t)$ regional plots, multi-channel activation timelines with missing-event detection (Sinus Pause & AV Block), beat-to-beat tachograms, estimated BPM conversion, and numerical activation event logs with CSV export.
 - **Deliverable 1 (Mathematical Research Report):** Complete formal documentation and analytical derivations located in [docs/MATHEMATICAL_RESEARCH_REPORT.md](file:///c:/Users/Saloni/Desktop/Cardiac%20Electrical%20Activity%20&%20Arrhythmia%20Simulator/docs/MATHEMATICAL_RESEARCH_REPORT.md).
 
 > **Scientific & Medical Boundaries (Non-Clinical Disclaimers):**
 > 1. **Model Scope:** The FHN system is a dimensionless, two-variable phenomenological excitable model. It does **not** simulate an anatomical 3D human heart or individual ionic currents ($I_{\text{Na}}, I_{\text{Ca,L}}, I_{\text{K}}$).
-> 2. **Rhythm Traces:** The computed rhythm waveforms are activation-derived signals generated via electrical dipole moment projection ($\Phi(t) = \sum g_{ij}(v_j - v_i) \cdot \vec{d}_{ij}$). They are **not** clinical 12-lead electrocardiograms (ECGs) and cannot be used for medical diagnosis or clinical decision-making.
+> 2. **Rhythm Traces:** The computed rhythm waveforms are activation-derived signals generated via electrical dipole moment projection ($\Phi(t) = \sum g_{ij}(v_j - v_i) \cdot \vec{d}_{ij}$) and idealized Einthoven limb lead projections. They are **not** clinical 12-lead electrocardiograms (ECGs) and cannot be used for medical diagnosis or clinical decision-making.
 > 3. **Emergent Physics:** Conduction delays and blocks emerge dynamically from non-linear threshold dynamics, intercellular coupling ($D \cdot A_{ij}$), and recovery variable refractoriness ($w_i$). Zero artificial or pre-recorded animation delays are used.
 > 4. **Honest Numerical Re-entry:** The re-entry module simulates an actual closed-loop circuit and evaluates whether circulation persists based on the relationship between loop traversal time $T_{\text{loop}}$ and refractory recovery duration $T_{\text{refractory}}$.
 
@@ -39,8 +40,9 @@ Cardiac Electrical Activity & Arrhythmia Simulator/
 │   ├── network.py                      # Stage 2: Graph topology, network RK4 integrator
 │   ├── activation.py                   # Stage 2: Depolarization detector, latency & block analyzer
 │   ├── scenarios.py                    # Stage 3: Arrhythmia scenario engine & dipole rhythm projection
-│   └── visualization.py                # Stage 4: Anatomical heart SVG, 3-state color mapper, 60 FPS Canvas
-├── tests/                              # Automated Verification Suite (33 Unit Tests)
+│   ├── visualization.py                # Stage 4: Anatomical heart SVG, 3-state color mapper, 60 FPS Canvas
+│   └── rhythm_analysis.py              # Stage 5: Event logs, BPM conversion, tachogram, Lead II projection
+├── tests/                              # Automated Verification Suite (47 Unit Tests)
 │   ├── __init__.py
 │   ├── test_rk4_solver.py              # RK4 4th-order convergence on known problem
 │   ├── test_equilibrium.py             # Cubic roots & residual verification (< 10⁻¹⁰)
@@ -48,6 +50,20 @@ Cardiac Electrical Activity & Arrhythmia Simulator/
 │   ├── test_sweeps.py                  # Parameter sweeps, analytical Hopf locus, fold non-existence
 │   ├── test_network.py                 # Isolated cells, connected cells, emergent wave, AV block
 │   ├── test_scenarios.py               # Stage 3: Normal, Tachycardia, Bradycardia, Pause, AV Block, Re-entry
+│   ├── test_visualization.py          # Stage 4: Color mapping, frame packing, HTML generation, fidelity
+│   ├── test_audit_stage4.py           # Technical validation audit suite (7 formal criteria)
+│   └── test_rhythm_analysis.py        # Stage 5: Event log, tachogram, BPM, missing events, Lead II
+├── app.py                              # Interactive Streamlit Web Application (Stages 1-5)
+├── run_cli.py                          # CLI runner for headless analysis, testing & scenario figures/HTML
+├── scenario_normal.png                 # Generated Normal Rhythm multi-channel & dipole trace figure
+├── scenario_reentry.png                # Generated Re-entry multi-channel & circus trace figure
+├── scenario_normal_vis.html            # Exported standalone interactive anatomical visualizer (Normal)
+├── scenario_reentry_vis.html           # Exported standalone interactive anatomical visualizer (Re-entry)
+├── scenario_normal_event_log.csv       # Exported numerical activation event log (Normal)
+├── scenario_pause_event_log.csv        # Exported numerical activation event log (Sinus Pause)
+├── scenario_av_block_event_log.csv     # Exported numerical activation event log (AV Block)
+└── README.md                           # Documentation & test manual
+```
 │   └── test_visualization.py          # Stage 4: Color mapping, frame packing, HTML generation, fidelity
 ├── app.py                              # Interactive Streamlit Web Application (Stages 1-4)
 ├── run_cli.py                          # CLI runner for headless analysis, testing & scenario figures/HTML
@@ -95,51 +111,27 @@ $$\Phi(t) = \sum_{(i,j) \in \text{Edges}} g_{ij} \big( v_j(t) - v_i(t) \big) \cd
 
 ---
 
-## 5. Automated Verification Suite (33 Tests)
+## 5. Automated Verification Suite (47 Tests)
 
-All 33 automated unit tests pass with zero warnings across all 4 stages:
+All 47 automated unit tests pass with zero warnings across all 5 stages:
 
 ```
 ============================= test session starts =============================
 platform win32 -- Python 3.14.2, pytest-9.2.0, pluggy-1.7.0
 rootdir: C:\Users\Saloni\Desktop\Cardiac Electrical Activity & Arrhythmia Simulator
-collected 33 items
+collected 47 items
 
-tests/test_equilibrium.py::test_standard_cardiac_equilibrium PASSED      [  3%]
-tests/test_equilibrium.py::test_resting_state_equilibrium PASSED         [  6%]
-tests/test_equilibrium.py::test_nullcline_intersection_coincidence PASSED [  9%]
-tests/test_equilibrium.py::test_multiple_equilibria_regime PASSED        [ 12%]
-tests/test_jacobian.py::test_analytical_vs_finite_difference_jacobian PASSED [ 15%]
-tests/test_jacobian.py::test_trace_determinant_eigenvalue_consistency PASSED [ 18%]
-tests/test_jacobian.py::test_stability_classification_regimes PASSED     [ 21%]
-tests/test_network.py::test_isolated_cells_uncoupled_dynamics PASSED     [ 24%]
-tests/test_network.py::test_connected_cells_diffusive_equilibration PASSED [ 27%]
-tests/test_network.py::test_sequential_excitation_propagation PASSED     [ 30%]
-tests/test_network.py::test_conduction_block_detection_on_severed_pathway PASSED [ 33%]
-tests/test_network.py::test_refractory_suppression_of_premature_stimulus PASSED [ 36%]
-tests/test_rk4_solver.py::test_rk4_order_of_accuracy_on_exponential PASSED [ 39%]
-tests/test_rk4_solver.py::test_fhn_rk4_solve_structure PASSED            [ 42%]
-tests/test_rk4_solver.py::test_fhn_step_refinement_convergence PASSED    [ 45%]
-tests/test_rk4_solver.py::test_invalid_parameters_handling PASSED        [ 48%]
-tests/test_scenarios.py::test_scenario_normal_rhythm_conduction PASSED   [ 51%]
-tests/test_scenarios.py::test_scenario_tachycardia_frequency_increase PASSED [ 54%]
-tests/test_scenarios.py::test_scenario_bradycardia_frequency_decrease PASSED [ 57%]
-tests/test_scenarios.py::test_scenario_sinus_pause_suppression_window PASSED [ 60%]
-tests/test_scenarios.py::test_scenario_av_block_conduction_failure PASSED [ 63%]
-tests/test_scenarios.py::test_scenario_reentry_numerical_honesty PASSED  [ 66%]
-tests/test_sweeps.py::test_sweep_parameter_I_execution PASSED            [ 69%]
-tests/test_sweeps.py::test_hopf_candidates_accuracy PASSED               [ 72%]
-tests/test_sweeps.py::test_fold_nonexistence_for_cardiac_b PASSED        [ 75%]
-tests/test_sweeps.py::test_sweep_parameter_epsilon_execution PASSED      [ 78%]
-tests/test_visualization.py::test_map_state_to_color_resting PASSED      [ 81%]
-tests/test_visualization.py::test_map_state_to_color_depolarized PASSED  [ 84%]
-tests/test_visualization.py::test_map_state_to_color_refractory PASSED   [ 87%]
-tests/test_visualization.py::test_extract_animation_frames_normal PASSED [ 90%]
-tests/test_visualization.py::test_extract_animation_frames_reentry PASSED [ 93%]
-tests/test_visualization.py::test_build_heart_visualization_html PASSED  [ 96%]
-tests/test_visualization.py::test_visualization_numerical_fidelity PASSED [100%]
+tests/test_audit_stage4.py (7 tests) ................................... PASSED [ 14%]
+tests/test_equilibrium.py (4 tests) .................................... PASSED [ 23%]
+tests/test_jacobian.py (3 tests) ....................................... PASSED [ 29%]
+tests/test_network.py (5 tests) ........................................ PASSED [ 40%]
+tests/test_rhythm_analysis.py (7 tests) ................................ PASSED [ 55%]
+tests/test_rk4_solver.py (4 tests) ..................................... PASSED [ 63%]
+tests/test_scenarios.py (6 tests) ...................................... PASSED [ 76%]
+tests/test_sweeps.py (4 tests) ......................................... PASSED [ 85%]
+tests/test_visualization.py (7 tests) .................................. PASSED [100%]
 
-============================= 33 passed in 7.72s ==============================
+============================= 47 passed in 57.04s =============================
 ```
 
 ---

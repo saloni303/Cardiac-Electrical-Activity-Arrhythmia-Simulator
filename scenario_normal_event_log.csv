@@ -1,0 +1,25 @@
+Time (u),Region,Node ID,Threshold Crossing (v),Previous Activation (u),Interval (Δt u),Beat #,Conduction Status
+0.67,SAN,0,0.0,-,First Beat,1,Initial Beat / Baseline
+3.11,Atrium,1,0.0,-,First Beat,1,Initial Beat / Baseline
+6.24,AVN,2,0.0,-,First Beat,1,Initial Beat / Baseline
+9.63,His,3,0.0,-,First Beat,1,Initial Beat / Baseline
+12.39,Purkinje,4,0.0,-,First Beat,1,Initial Beat / Baseline
+14.1,Ventricle,5,0.0,-,First Beat,1,Initial Beat / Baseline
+45.67,SAN,0,0.0,0.67,45.0,2,Regular Forward Cascade
+47.98,Atrium,1,0.0,3.11,44.87,2,Regular Forward Cascade
+50.92,AVN,2,0.0,6.24,44.67,2,Regular Forward Cascade
+54.17,His,3,0.0,9.63,44.54,2,Regular Forward Cascade
+56.89,Purkinje,4,0.0,12.39,44.5,2,Regular Forward Cascade
+58.6,Ventricle,5,0.0,14.1,44.5,2,Regular Forward Cascade
+90.67,SAN,0,0.0,45.67,45.0,3,Regular Forward Cascade
+92.98,Atrium,1,0.0,47.98,45.0,3,Regular Forward Cascade
+95.91,AVN,2,0.0,50.92,45.0,3,Regular Forward Cascade
+99.16,His,3,0.0,54.17,44.99,3,Regular Forward Cascade
+101.88,Purkinje,4,0.0,56.89,44.98,3,Regular Forward Cascade
+103.58,Ventricle,5,0.0,58.6,44.98,3,Regular Forward Cascade
+135.67,SAN,0,0.0,90.67,45.0,4,Regular Forward Cascade
+137.98,Atrium,1,0.0,92.98,45.0,4,Regular Forward Cascade
+140.91,AVN,2,0.0,95.91,45.0,4,Regular Forward Cascade
+144.16,His,3,0.0,99.16,45.0,4,Regular Forward Cascade
+146.88,Purkinje,4,0.0,101.88,45.0,4,Regular Forward Cascade
+148.58,Ventricle,5,0.0,103.58,45.0,4,Regular Forward Cascade
