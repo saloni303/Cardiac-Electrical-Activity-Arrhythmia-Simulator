@@ -4,6 +4,7 @@ FitzHugh-Nagumo (FHN) Mathematical Core Package.
 Stage 1: Standalone classical two-variable FitzHugh-Nagumo ODE system.
 Stage 2: Coupled cardiac-cell network simulator.
 Stage 3: Arrhythmia scenario engine.
+Stage 4: Interactive anatomical cardiac visualization.
 """
 
 from .model import FHNParameters, fhn_derivatives, compute_vector_field
@@ -40,6 +41,11 @@ from .scenarios import (
     compute_rhythm_trace,
     create_reentry_network,
     make_pacing_protocol,
+)
+from .visualization import (
+    map_state_to_color,
+    extract_animation_frames,
+    build_heart_visualization_html,
 )
 
 __all__ = [
@@ -78,4 +84,8 @@ __all__ = [
     "compute_rhythm_trace",
     "create_reentry_network",
     "make_pacing_protocol",
+    # Stage 4: Interactive Anatomical Visualization
+    "map_state_to_color",
+    "extract_animation_frames",
+    "build_heart_visualization_html",
 ]

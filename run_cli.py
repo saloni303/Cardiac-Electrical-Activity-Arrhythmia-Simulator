@@ -322,6 +322,14 @@ def run_scenario_cli(scenario_name: str, pacing_interval: float = None):
     plt.close()
     print(f"\n6. Rhythm & Action Potential Plot Saved: {fig_name}")
 
+    # Stage 4: Export interactive anatomical visualization HTML
+    from fhn_core.visualization import build_heart_visualization_html
+    vis_html = build_heart_visualization_html(res)
+    vis_file = f"scenario_{norm_name}_vis.html"
+    with open(vis_file, "w", encoding="utf-8") as f:
+        f.write(vis_html)
+    print(f"7. Interactive Heart Visualizer Exported: {vis_file}")
+
 
 def main():
     parser = argparse.ArgumentParser(description="Standalone FitzHugh-Nagumo Mathematical Engine (Stage 1)")

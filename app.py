@@ -14,6 +14,7 @@ import pandas as pd
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import streamlit as st
+import streamlit.components.v1 as components
 
 # Core imports
 from fhn_core.model import FHNParameters, compute_vector_field, fhn_derivatives
@@ -53,6 +54,11 @@ from fhn_core.scenarios import (
     compute_rhythm_trace,
     create_reentry_circuit,
 )
+from fhn_core.visualization import (
+    map_state_to_color,
+    extract_animation_frames,
+    build_heart_visualization_html,
+)
 
 # Page configuration
 st.set_page_config(
@@ -89,8 +95,8 @@ st.sidebar.title("⚡ Cardiac FHN Simulator")
 app_mode = st.sidebar.radio(
     "Select Simulation Module:",
     [
-        "🏥 Arrhythmia Scenario Engine (Stage 3)",
-        "🌐 Coupled Conduction Network (Stage 2)",
+        "🏥 Arrhythmia Scenario Engine & Heart Visualizer (Stage 3 & 4)",
+        "🌐 Coupled Conduction Network & Heart Visualizer (Stage 2 & 4)",
         "⚡ Standalone Single-Cell Engine (Stage 1)",
     ],
     index=0,
@@ -109,10 +115,10 @@ st.sidebar.info("""
 
 
 # =============================================================================
-# WORKSPACE 3: ARRHYTHMIA SCENARIO ENGINE (STAGE 3)
+# WORKSPACE 3: ARRHYTHMIA SCENARIO ENGINE (STAGE 3 & 4)
 # =============================================================================
-if app_mode == "🏥 Arrhythmia Scenario Engine (Stage 3)":
-    st.title("🏥 Cardiac Arrhythmia Scenario Engine (Stage 3)")
+if "Arrhythmia Scenario" in app_mode:
+    st.title("🏥 Cardiac Arrhythmia Scenario Engine & Interactive Heart (Stage 3 & 4)")
     st.caption("Numerically Driven Simulation of Cardiac Rhythms, Conduction Blocks, and Circus Re-entry")
 
     st.sidebar.subheader("Arrhythmia Scenarios")
@@ -233,6 +239,14 @@ if app_mode == "🏥 Arrhythmia Scenario Engine (Stage 3)":
         else:
             status_label = "1:1 Conduction" if res.comparison_with_normal.get("conduction_success") else "Conduction Block"
             st.metric("Conduction Status", status_label)
+
+    # -------------------------------------------------------------------------
+    # STAGE 4: INTERACTIVE ANATOMICAL CARDIAC VISUALIZATION
+    # -------------------------------------------------------------------------
+    st.markdown("### 🫀 Interactive Anatomical Conduction Visualization (Stage 4)")
+    st.caption("Synchronized 60 FPS anatomical wavefront animation driven by continuous numerical ODE integration. Features Play/Pause/Reset, Scrubber, Speed controls, and Real-time Rhythm Cursor.")
+    heart_html = build_heart_visualization_html(res, width=950, height=720)
+    components.html(heart_html, height=740, scrolling=False)
 
     # Main Tabs for Stage 3
     sc_tab_traces, sc_tab_timing, sc_tab_comp, sc_tab_math = st.tabs([
@@ -398,12 +412,12 @@ if app_mode == "🏥 Arrhythmia Scenario Engine (Stage 3)":
 
         st.divider()
         st.markdown("### Automated Test Suite Execution")
-        if st.button("▶ Run All 26 Unit Tests (Stages 1, 2 & 3)"):
+        if st.button("▶ Run All Unit Tests (Stages 1-4)"):
             with st.spinner("Executing pytest suite across tests/..."):
                 import subprocess
                 p_res = subprocess.run([sys.executable, "-m", "pytest", "tests", "-v"], capture_output=True, text=True)
                 if p_res.returncode == 0:
-                    st.success("All 26 Unit Tests Passed Successfully!")
+                    st.success("All Unit Tests Passed Successfully!")
                     st.code(p_res.stdout)
                 else:
                     st.error("Some tests failed:")
@@ -411,10 +425,10 @@ if app_mode == "🏥 Arrhythmia Scenario Engine (Stage 3)":
 
 
 # =============================================================================
-# WORKSPACE 2: COUPLED CARDIAC NETWORK (STAGE 2)
+# WORKSPACE 2: COUPLED CARDIAC NETWORK & HEART VISUALIZER (STAGE 2 & 4)
 # =============================================================================
-elif app_mode == "🌐 Coupled Conduction Network (Stage 2)":
-    st.title("🌐 Coupled Cardiac-Cell Conduction Network (Stage 2)")
+elif "Coupled Conduction" in app_mode:
+    st.title("🌐 Coupled Cardiac-Cell Conduction Network & Interactive Heart (Stage 2 & 4)")
     st.caption("Emergent Conduction Delays, Gap-Junction Coupling, Refractoriness, and Block Detection")
 
     st.sidebar.subheader("Network Presets")
@@ -505,6 +519,19 @@ elif app_mode == "🌐 Coupled Conduction Network (Stage 2)":
             fig_w.add_trace(go.Scatter(x=t_net, y=V_net[:, i], mode="lines", name=net.nodes[i].name, line=dict(color=colors[i % len(colors)], width=2.0)))
         fig_w.update_layout(height=450, margin=dict(l=40, r=20, t=20, b=20), xaxis_title="Time t", yaxis_title="Voltage v_i", hovermode="x unified", template="plotly_white")
         st.plotly_chart(fig_w, use_container_width=True)
+
+    # Stage 4: Interactive Anatomical Conduction Visualization for Stage 2
+    st.markdown("### 🫀 Interactive Anatomical Conduction Visualization (Stage 4)")
+    st.caption("Live 60 FPS anatomical wavefront animation driven directly by the coupled ODE network solver.")
+    net_sim_dict = {
+        "network": net,
+        "time": t_net,
+        "V": V_net,
+        "W": W_net,
+        "name": f"Coupled Conduction ({net_preset})",
+    }
+    net_heart_html = build_heart_visualization_html(net_sim_dict, width=950, height=720)
+    components.html(net_heart_html, height=740, scrolling=False)
 
 
 # =============================================================================
