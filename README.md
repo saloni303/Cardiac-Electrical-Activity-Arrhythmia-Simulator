@@ -3,7 +3,7 @@
 > **Cardiac-Electrical-Activity-Arrhythmia-Simulator**  
 > A mathematical simulation of heart cell electrical activity using the FitzHugh–Nagumo (FHN) model. Explore how changing parameters affects cell behaviour, conduction latencies, and arrhythmia-like patterns through interactive graphs and an anatomical heart visualizer. Focused on single-cell and coupled-network mathematical modelling, not clinical diagnosis or medical ECG analysis.
 
-**Stages 1, 2, 3, 4, 5, 6 & 7: Standalone FHN Engine, Conduction Network, Arrhythmia Scenarios, Interactive Heart, Rhythm Analysis, Mathematical Analysis Laboratory & Final Integrated Dashboard**
+**Stages 1 to 9: Standalone FHN Engine, Conduction Network, Arrhythmia Scenarios, Interactive Heart, Rhythm Analysis, Mathematical Analysis Laboratory, Integrated Final Dashboard, Parameter Experiment Lab & Complete Scientific Validation**
 
 ---
 
@@ -17,7 +17,10 @@ This repository contains an academic research simulation suite developed to inve
 - **Stage 5 (Rhythm Visualization & Activation Analysis):** Full rhythm analysis panel featuring multi-lead field projections, separate $v(t)$ and $w(t)$ regional plots, multi-channel activation timelines with missing-event detection (Sinus Pause & AV Block), beat-to-beat tachograms, estimated BPM conversion, and numerical activation event logs with CSV export.
 - **Stage 6 (Mathematical Analysis Laboratory):** Dedicated analytical laboratory featuring nullclines, Cardano equilibrium solving with $< 10^{-12}$ residual verification, analytical Jacobian linearization, Poincaré stability classification, normalized vector fields with selectable trajectory integrations, multi-parameter sweeps ($I, \varepsilon, a, b$) with Hopf/Fold/Node-Focus condition verification, and a before-and-after parameter comparison lab with automated dynamical diagnosis.
 - **Stage 7 (Integrated Final Cardiac Simulator Dashboard):** Modern, dark scientific simulation interface integrating all 7 core sections into a unified Main Dashboard, plus dedicated modular workspaces: Arrhythmia Lab, Mathematical Analysis Laboratory, Parameter Experiment Lab, and About the Model.
-- **Deliverable 1 (Mathematical Research Report):** Complete formal documentation and analytical derivations located in [docs/MATHEMATICAL_RESEARCH_REPORT.md](file:///c:/Users/Saloni/Desktop/Cardiac%20Electrical%20Activity%20&%20Arrhythmia%20Simulator/docs/MATHEMATICAL_RESEARCH_REPORT.md).
+- **Stage 8 (Parameter Experiment Lab):** Rigorous controlled experiment workflow (Baseline ➔ Save ➔ Modify ➔ Compare), multi-parameter sweep engine ($I, \varepsilon, a, b, D, T_{\text{pace}}, g_{\text{AV}}$) with 4 outcome charts, dynamic scientific interpretation, and CSV exports.
+- **Stage 9 (Scientific & Software Validation):** Complete verification suite testing 25 formal criteria across Mathematical derivations, Network conduction physics, UI integration, and Performance/Numerical stability.
+- **Deliverable 1 (Mathematical Research Report):** [docs/MATHEMATICAL_RESEARCH_REPORT.md](file:///c:/Users/Saloni/Desktop/Cardiac%20Electrical%20Activity%20&%20Arrhythmia%20Simulator/docs/MATHEMATICAL_RESEARCH_REPORT.md).
+- **Deliverable 2 (Scientific & Software Validation Report):** [docs/STAGE9_VALIDATION_REPORT.md](file:///c:/Users/Saloni/Desktop/Cardiac%20Electrical%20Activity%20&%20Arrhythmia%20Simulator/docs/STAGE9_VALIDATION_REPORT.md).
 
 > **Scientific & Medical Boundaries (Non-Clinical Disclaimers):**
 > 1. **Model Scope:** The FHN system is a dimensionless, two-variable phenomenological excitable model. It does **not** simulate an anatomical 3D human heart or individual ionic currents ($I_{\text{Na}}, I_{\text{Ca,L}}, I_{\text{K}}$).
@@ -107,29 +110,31 @@ $$\Phi(t) = \sum_{(i,j) \in \text{Edges}} g_{ij} \big( v_j(t) - v_i(t) \big) \cd
 
 ---
 
-## 5. Automated Verification Suite (57 Tests)
+## 5. Automated Verification Suite (89 Tests)
 
-All 57 automated unit tests pass with zero warnings across all 7 stages:
+All 89 automated unit and validation tests pass with zero warnings across all 9 stages:
 
 ```
 ============================= test session starts =============================
 platform win32 -- Python 3.14.2, pytest-9.2.0, pluggy-1.7.0
 rootdir: C:\Users\Saloni\Desktop\Cardiac Electrical Activity & Arrhythmia Simulator
-collected 57 items
+collected 89 items
 
-tests/test_audit_stage4.py (7 tests) ................................... PASSED [ 12%]
-tests/test_equilibrium.py (4 tests) .................................... PASSED [ 19%]
+tests/test_audit_stage4.py (7 tests) ................................... PASSED [  8%]
+tests/test_equilibrium.py (4 tests) .................................... PASSED [ 12%]
+tests/test_experiments.py (7 tests) .................................... PASSED [ 20%]
 tests/test_jacobian.py (3 tests) ....................................... PASSED [ 24%]
-tests/test_laboratory.py (6 tests) ..................................... PASSED [ 35%]
-tests/test_network.py (5 tests) ........................................ PASSED [ 43%]
-tests/test_rhythm_analysis.py (7 tests) ................................ PASSED [ 56%]
-tests/test_rk4_solver.py (4 tests) ..................................... PASSED [ 63%]
-tests/test_scenarios.py (6 tests) ...................................... PASSED [ 73%]
-tests/test_stage7_dashboard.py (4 tests) ............................... PASSED [ 80%]
-tests/test_sweeps.py (4 tests) ......................................... PASSED [ 87%]
+tests/test_laboratory.py (6 tests) ..................................... PASSED [ 30%]
+tests/test_network.py (5 tests) ........................................ PASSED [ 36%]
+tests/test_rhythm_analysis.py (7 tests) ................................ PASSED [ 44%]
+tests/test_rk4_solver.py (4 tests) ..................................... PASSED [ 48%]
+tests/test_scenarios.py (6 tests) ...................................... PASSED [ 55%]
+tests/test_stage7_dashboard.py (4 tests) ............................... PASSED [ 60%]
+tests/test_stage9_validation.py (25 tests) ............................. PASSED [ 88%]
+tests/test_sweeps.py (4 tests) ......................................... PASSED [ 92%]
 tests/test_visualization.py (7 tests) .................................. PASSED [100%]
 
-======================== 57 passed in 63.75s (0:01:03) ========================
+============================= 89 passed in 48.89s =============================
 ```
 
 ---
@@ -205,7 +210,11 @@ python -m streamlit run app.py
    ```powershell
    python run_cli.py --scenario reentry
    ```
-10. **Run Complete Automated Unit Test Suite (64 Tests):**
+10. **Run Complete Automated Unit Test Suite (89 Tests):**
     ```powershell
     python -m pytest tests -v
+    ```
+11. **Run Stage 9 Formal Validation Suite (25 Tests):**
+    ```powershell
+    python -m pytest tests/test_stage9_validation.py -v
     ```

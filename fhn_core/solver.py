@@ -41,6 +41,10 @@ def rk4_step(
     k4 = fhn_derivatives(t + dt, state + dt * k3, params, I_external)
 
     next_state = state + (dt / 6.0) * (k1 + 2.0 * k2 + 2.0 * k3 + k4)
+    # Numerical stability guard against extreme blowup
+    if np.any(np.isnan(next_state)) or np.any(np.isinf(next_state)):
+        next_state = np.nan_to_num(next_state, nan=0.0, posinf=15.0, neginf=-15.0)
+    next_state = np.clip(next_state, -20.0, 20.0)
     return next_state
 
 

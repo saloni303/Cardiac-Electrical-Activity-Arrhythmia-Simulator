@@ -76,6 +76,12 @@ class ScenarioConfig:
         elif self.scenario_type == ScenarioType.AV_BLOCK:
             if self.av_conductance == 0.35:
                 self.av_conductance = 0.0
+        elif self.scenario_type == ScenarioType.TACHYCARDIA:
+            if self.pacing_interval == 45.0:
+                self.pacing_interval = 35.0
+        elif self.scenario_type == ScenarioType.BRADYCARDIA:
+            if self.pacing_interval == 45.0:
+                self.pacing_interval = 75.0
 
 
 @dataclass

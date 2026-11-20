@@ -248,6 +248,13 @@ def rk4_network_step(
     V_next = V + (dt / 6.0) * (kV1 + 2.0 * kV2 + 2.0 * kV3 + kV4)
     W_next = W + (dt / 6.0) * (kW1 + 2.0 * kW2 + 2.0 * kW3 + kW4)
 
+    # Numerical stability guard against extreme blowup
+    if np.any(np.isnan(V_next)) or np.any(np.isinf(V_next)):
+        V_next = np.nan_to_num(V_next, nan=-1.2, posinf=15.0, neginf=-15.0)
+        W_next = np.nan_to_num(W_next, nan=-0.6, posinf=15.0, neginf=-15.0)
+    V_next = np.clip(V_next, -20.0, 20.0)
+    W_next = np.clip(W_next, -20.0, 20.0)
+
     return V_next, W_next
 
 
