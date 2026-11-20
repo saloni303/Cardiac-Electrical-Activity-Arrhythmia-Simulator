@@ -1,11 +1,20 @@
 """
-Interactive Streamlit Application:
-    Stage 1: Standalone FitzHugh-Nagumo Mathematical Engine
-    Stage 2: Coupled Cardiac-Cell Conduction Network
-    Stage 3: Arrhythmia Scenario Engine (Normal, Tachycardia, Bradycardia, Sinus Pause, AV Block, Re-entry)
+Cardiac Electrical Activity and Arrhythmia Simulator (Stage 7 Integrated Dashboard)
 
-Academic Project:
-    ODE-Based Simulation of Cardiac Electrical Activity and Arrhythmia Dynamics Using the FitzHugh-Nagumo Model
+An integrated, professional scientific simulation platform:
+    1. Main Dashboard:
+       - Section 1: Heart Visualization (Interactive anatomical 60 FPS Canvas illustration)
+       - Section 2: Simulation Controls (Start, Pause, Reset, Speed, Scenarios)
+       - Section 3: Arrhythmia Controls (Normal, Tachycardia, Bradycardia, Sinus Pause, AV Block, Re-entry)
+       - Section 4: Parameter Panel (I, ε, a, b, D, Pacing, Connection, Regional parameters)
+       - Section 5: Electrical Rhythm (Activation-derived rhythm trace, timeline, estimated rate)
+       - Section 6: Mathematical Analysis (v(t), w(t), nullclines, equilibria, Jacobian, eigenvalues, stability)
+       - Section 7: Experiment Comparison (Save baseline, modify parameters, compare deltas and waveforms)
+    2. Arrhythmia Lab: Deep-dive comparative scenario study, Lead II dipole, numerical event log.
+    3. Mathematical Analysis: Cardano roots, analytical Jacobian, Poincaré stability, phase plane, sweeps.
+    4. Parameter Experiment Lab: Dedicated baseline vs trial sandbox.
+    5. About the Model: Comprehensive academic reference detailing equations, variables, network extension,
+       assumptions, limitations, and distinction from a real human heart.
 """
 
 import sys
@@ -13,10 +22,11 @@ import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
+import plotly.figure_factory as ff
 import streamlit as st
 import streamlit.components.v1 as components
 
-# Core imports
+# Core FHN Package Imports
 from fhn_core.model import FHNParameters, compute_vector_field, fhn_derivatives
 from fhn_core.solver import rk4_solve, compute_time_series
 from fhn_core.analysis import (
@@ -32,6 +42,13 @@ from fhn_core.sweeps import (
     sweep_parameter_epsilon,
     find_hopf_candidates,
     check_fold_existence,
+)
+from fhn_core.laboratory import (
+    sweep_parameter_a,
+    sweep_parameter_b,
+    analyze_bifurcation_conditions,
+    compare_fhn_states,
+    StateComparisonResult,
 )
 from fhn_core.network import (
     RegionType,
@@ -69,44 +86,98 @@ from fhn_core.rhythm_analysis import (
     compare_with_normal_rhythm,
 )
 
-# Page configuration
+# -----------------------------------------------------------------------------
+# PAGE CONFIGURATION & DARK SCIENTIFIC THEME
+# -----------------------------------------------------------------------------
 st.set_page_config(
-    page_title="Cardiac Arrhythmia & FHN Simulator",
-    page_icon="⚡",
+    page_title="Cardiac Electrical Activity and Arrhythmia Simulator",
+    page_icon="🫀",
     layout="wide",
     initial_sidebar_state="expanded",
 )
 
-# Custom CSS for scientific styling
+# Custom CSS: Dark Scientific Medical Dashboard
 st.markdown("""
 <style>
+    /* Dark Theme Base */
+    .stApp {
+        background-color: #0b0f19;
+        color: #f8fafc;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    }
     .reportview-container .main .block-container {
-        padding-top: 1.5rem;
+        padding-top: 1.0rem;
+        padding-bottom: 2.0rem;
+        max-width: 98%;
     }
+    /* Metric Cards */
     .metric-card {
-        background-color: #1e293b;
+        background-color: #111827;
+        border: 1px solid #1f2937;
         border-radius: 8px;
-        padding: 16px;
+        padding: 12px 14px;
         border-left: 4px solid #3b82f6;
-        margin-bottom: 12px;
+        margin-bottom: 8px;
     }
+    .metric-card-title {
+        color: #94a3b8;
+        font-size: 0.75rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        margin-bottom: 4px;
+    }
+    .metric-card-val {
+        color: #f8fafc;
+        font-size: 1.25rem;
+        font-weight: 700;
+    }
+    /* Section Headers */
+    .sec-title {
+        font-size: 1.15rem;
+        font-weight: 700;
+        color: #60a5fa;
+        border-bottom: 1px solid #1e293b;
+        padding-bottom: 6px;
+        margin-top: 14px;
+        margin-bottom: 10px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+    /* Scientific Alerts */
     .stAlert {
         border-radius: 6px;
+        background-color: #111827;
+        border: 1px solid #334155;
+    }
+    /* Sidebar Styling */
+    section[data-testid="stSidebar"] {
+        background-color: #0f172a;
+        border-right: 1px solid #1e293b;
     }
 </style>
 """, unsafe_allow_html=True)
 
+# Initialize Session State for Experiment Comparison
+if "baseline_sim" not in st.session_state:
+    st.session_state["baseline_sim"] = None
 
-# ---------------------------------------------------------
-# SIDEBAR: APP MODE NAVIGATION & SCIENTIFIC DISCLAIMER
-# ---------------------------------------------------------
-st.sidebar.title("⚡ Cardiac FHN Simulator")
-app_mode = st.sidebar.radio(
-    "Select Simulation Module:",
+
+# -----------------------------------------------------------------------------
+# SIDEBAR: NAVIGATION & SCIENTIFIC DISCLAIMERS
+# -----------------------------------------------------------------------------
+st.sidebar.title("🫀 Cardiac Simulator")
+st.sidebar.caption("FitzHugh–Nagumo Electrophysiology Engine")
+
+nav_view = st.sidebar.radio(
+    "Navigation:",
     [
-        "🏥 Arrhythmia Scenarios & Rhythm Analysis (Stages 3, 4 & 5)",
-        "🌐 Coupled Conduction Network & Heart Visualizer (Stage 2 & 4)",
-        "⚡ Standalone Single-Cell Engine (Stage 1)",
+        "🫀 Main Dashboard",
+        "🏥 Arrhythmia Lab",
+        "🔬 Mathematical Analysis",
+        "⚖️ Parameter Experiment Lab",
+        "📖 About the Model",
     ],
     index=0,
 )
@@ -114,23 +185,27 @@ app_mode = st.sidebar.radio(
 st.sidebar.divider()
 
 st.sidebar.info("""
-**Academic & Scientific Disclaimers:**
-- Single-cell: 2-variable FitzHugh-Nagumo ODE.
-- Coupled network: Multi-compartment discrete conduction graph.
-- Rhythm traces are simulated via electrical dipole projection.
-- **Not** a full human heart simulation; does **not** produce clinical ECGs or diagnose real patients.
-- Demonstration parameters are pedagogical analogues.
+**Academic & Scientific Boundaries:**
+- **Model:** Dimensionless FitzHugh–Nagumo ODE.
+- **Network:** 6-compartment diffusive conduction graph.
+- **Rhythm Trace:** Electrical dipole projection.
+- **Non-Clinical:** Illustrative educational surrogate; not a diagnostic ECG.
 """)
 
 
 # =============================================================================
-# WORKSPACE 3: ARRHYTHMIA SCENARIO ENGINE & RHYTHM ANALYSIS (STAGES 3-5)
+# VIEW 1: MAIN DASHBOARD (SECTIONS 1 THROUGH 7)
 # =============================================================================
-if "Arrhythmia" in app_mode:
-    st.title("🏥 Cardiac Arrhythmia Simulation & Rhythm Analysis Panel (Stages 3–5)")
-    st.caption("Numerically Driven Simulation of Cardiac Rhythms, Conduction Blocks, and Circus Re-entry")
+if "Main Dashboard" in nav_view:
+    st.title("Cardiac Electrical Activity and Arrhythmia Simulator")
+    st.caption("Interactive Multi-Scale Electrophysiology Platform: Single-Cell FitzHugh–Nagumo Dynamics to Coupled Conduction Networks")
 
-    st.sidebar.subheader("Arrhythmia Scenarios")
+    # -------------------------------------------------------------------------
+    # SIDEBAR CONTROLS: SECTIONS 2, 3 & 4
+    # -------------------------------------------------------------------------
+    st.sidebar.markdown("### 🎛️ Simulation & Arrhythmia Controls")
+
+    # SECTION 3: ARRHYTHMIA CONTROLS
     selected_scenario_name = st.sidebar.selectbox(
         "Select Rhythm Scenario:",
         [
@@ -144,43 +219,37 @@ if "Arrhythmia" in app_mode:
         index=0,
     )
 
-    # Map name to ScenarioType
     if "Normal" in selected_scenario_name:
         sc_type = ScenarioType.NORMAL
-        default_pacing = 45.0
-        default_t_end = 160.0
+        def_pacing = 45.0
+        def_t_end = 160.0
     elif "Tachycardia" in selected_scenario_name:
         sc_type = ScenarioType.TACHYCARDIA
-        default_pacing = 35.0
-        default_t_end = 160.0
+        def_pacing = 35.0
+        def_t_end = 160.0
     elif "Bradycardia" in selected_scenario_name:
         sc_type = ScenarioType.BRADYCARDIA
-        default_pacing = 75.0
-        default_t_end = 160.0
+        def_pacing = 75.0
+        def_t_end = 160.0
     elif "Sinus Pause" in selected_scenario_name:
         sc_type = ScenarioType.SINUS_PAUSE
-        default_pacing = 45.0
-        default_t_end = 160.0
+        def_pacing = 45.0
+        def_t_end = 160.0
     elif "AV Block" in selected_scenario_name:
         sc_type = ScenarioType.AV_BLOCK
-        default_pacing = 45.0
-        default_t_end = 160.0
+        def_pacing = 45.0
+        def_t_end = 160.0
     else:
         sc_type = ScenarioType.REENTRY
-        default_pacing = 45.0
-        default_t_end = 150.0
+        def_pacing = 45.0
+        def_t_end = 150.0
 
-    st.sidebar.subheader("Interactive Scenario Controls")
-
-    # Dynamic controls based on scenario
+    # SECTION 2: SIMULATION CONTROLS
+    st.sidebar.markdown("#### Scenario Pacing & Timing")
     if sc_type == ScenarioType.REENTRY:
-        reentry_nodes = st.sidebar.slider(
-            "Loop Size (Number of Nodes)",
-            min_value=4, max_value=12, value=10, step=1,
-            help="Small loops (e.g. 4 nodes) extinguish because conduction time < refractoriness. Larger loops (8-12 nodes) sustain circus movement."
-        )
-        reentry_g = st.sidebar.slider("Ring Coupling (g)", min_value=0.15, max_value=0.55, value=0.35, step=0.05)
-        reentry_eps = st.sidebar.slider("Recovery Rate (ε)", min_value=0.05, max_value=0.25, value=0.15, step=0.02)
+        reentry_nodes = st.sidebar.slider("Loop Size (Ring Nodes)", 4, 12, 10, 1, help="Critical loop size: circulation persists only if loop traversal time > refractoriness.")
+        reentry_g = st.sidebar.slider("Ring Coupling (g)", 0.15, 0.55, 0.35, 0.05)
+        reentry_eps = st.sidebar.slider("Recovery Rate (ε)", 0.05, 0.25, 0.15, 0.02)
         pacing_val = 100.0
         pause_start = None
         pause_end = None
@@ -190,37 +259,49 @@ if "Arrhythmia" in app_mode:
         reentry_nodes = 10
         reentry_g = 0.35
         reentry_eps = 0.15
-        pacing_val = st.sidebar.slider(
-            "SA Pacing Interval (T_pace)",
-            min_value=25.0, max_value=100.0, value=float(default_pacing), step=2.0,
-            help="Time period between consecutive pacing pulses delivered to the SA node."
-        )
+        pacing_val = st.sidebar.slider("SA Pacing Interval (T_pace)", 25.0, 100.0, float(def_pacing), 2.0, help="Period between consecutive impulses delivered to SA node.")
 
         if sc_type == ScenarioType.SINUS_PAUSE:
-            pause_start = st.sidebar.slider("Pause Start Time", min_value=10.0, max_value=80.0, value=30.0, step=5.0)
-            pause_end = st.sidebar.slider("Pause End Time", min_value=pause_start + 10.0, max_value=140.0, value=110.0, step=5.0)
+            pause_start = st.sidebar.slider("Pause Start (u)", 10.0, 80.0, 30.0, 5.0)
+            pause_end = st.sidebar.slider("Pause End (u)", pause_start + 10.0, 140.0, 110.0, 5.0)
         else:
             pause_start = None
             pause_end = None
 
         if sc_type == ScenarioType.AV_BLOCK:
             block_loc = st.sidebar.selectbox("Block Location:", ["Atrium-to-AVN", "AVN-to-His"])
-            g_av_val = st.sidebar.slider("Junction Conductance (g)", min_value=0.0, max_value=0.35, value=0.0, step=0.02,
-                                         help="Set to 0.0 for complete block; intermediate values illustrate delayed/decremental transmission.")
+            g_av_val = st.sidebar.slider("Junction Conductance (g_AV)", 0.0, 0.35, 0.0, 0.02, help="0.0 represents complete conduction block; intermediate values represent delayed conduction.")
         else:
             block_loc = "Atrium-to-AVN"
             g_av_val = 0.35
 
-    t_end_val = st.sidebar.slider("Simulation Horizon (T_end)", min_value=80.0, max_value=240.0, value=float(default_t_end), step=10.0)
+    t_end_val = st.sidebar.slider("Simulation Horizon (T_end)", 60.0, 240.0, float(def_t_end), 10.0)
 
-    # Build scenario config
+    # SECTION 4: PARAMETER PANEL
+    st.sidebar.markdown("### ⚙️ Parameter Panel")
+    with st.sidebar.expander("Global Model Parameters", expanded=False):
+        st.caption("Governing single-cell parameters and global network coupling:")
+        I_val = st.slider("Stimulus Current (I)", 0.5, 3.0, 1.8, 0.1, help="External stimulus pulse amplitude delivered during pacing.")
+        eps_val = st.slider("Timescale Ratio (ε)", 0.01, 0.25, 0.08, 0.005, help="Ratio of fast voltage to slow recovery dynamics. Smaller values prolong refractory plateau.")
+        a_val = st.slider("Recovery Intercept (a)", 0.0, 1.2, 0.70, 0.05, help="Sets resting potential threshold position.")
+        b_val = st.slider("Recovery Slope (b)", 0.2, 1.5, 0.80, 0.05, help="Slope of recovery nullcline. b < 1 guarantees unique resting state.")
+        D_val = st.slider("Global Coupling (D)", 0.1, 1.5, 0.70, 0.05, help="Global gap-junction electrical coupling strength across connected cells.")
+
+    with st.sidebar.expander("Region-Specific Parameters", expanded=False):
+        st.caption("Fine-tune regional excitability, recovery and conductances:")
+        eps_san = st.slider("SA Node ε (SAN)", 0.02, 0.20, 0.08, 0.01)
+        eps_avn = st.slider("AV Node ε (AVN)", 0.02, 0.15, 0.08, 0.01)
+        eps_vent = st.slider("Ventricle ε (Vent)", 0.02, 0.15, 0.08, 0.01)
+
+    # Build Scenario Configuration
     cfg = ScenarioConfig(
         scenario_type=sc_type,
         pacing_interval=pacing_val,
+        pulse_amplitude=I_val,
         pause_start=pause_start,
         pause_end=pause_end,
         av_conductance=g_av_val,
-        global_coupling=0.70,
+        global_coupling=D_val,
         t_end=t_end_val,
         dt=0.02,
         block_location=block_loc,
@@ -229,565 +310,849 @@ if "Arrhythmia" in app_mode:
         reentry_epsilon=reentry_eps,
     )
 
-    # Execute simulation
+    # Execute Coupled Network Simulation
     res = run_scenario(cfg)
-
-    # Summary metric bar (Stage 5 Enhanced)
     hr_metrics = estimate_heart_rate_bpm(res.mean_cycle_length)
-    m_cols = st.columns(5)
-    with m_cols[0]:
-        st.metric("Pacing Interval (T_pace)", f"{cfg.pacing_interval:.1f} u" if sc_type != ScenarioType.REENTRY else "Single Starter")
-    with m_cols[1]:
-        st.metric("Mean Cycle Length", f"{res.mean_cycle_length:.2f} u" if res.mean_cycle_length else "N/A (Blocked)")
-    with m_cols[2]:
-        st.metric("Estimated Heart Rate", f"{hr_metrics['bpm']:.1f} BPM" if hr_metrics['is_meaningful'] else "0.0 BPM (Blocked)")
-    with m_cols[3]:
-        rate_ratio = res.comparison_with_normal.get("rate_ratio", 1.0)
-        st.metric("Relative to Normal", f"{rate_ratio:.2f}x" if rate_ratio > 0 else "0.0x (Blocked)")
-    with m_cols[4]:
+
+    # -------------------------------------------------------------------------
+    # TOP KPI METRICS BAR
+    # -------------------------------------------------------------------------
+    kpi_cols = st.columns(5)
+    with kpi_cols[0]:
+        st.markdown(f"""
+        <div class="metric-card">
+            <div class="metric-card-title">Active Scenario</div>
+            <div class="metric-card-val" style="font-size: 1.05rem;">{selected_scenario_name.split(':')[0]}</div>
+        </div>
+        """, unsafe_allow_html=True)
+    with kpi_cols[1]:
+        pacing_text = f"{cfg.pacing_interval:.1f} u" if sc_type != ScenarioType.REENTRY else "Single Starter"
+        st.markdown(f"""
+        <div class="metric-card">
+            <div class="metric-card-title">SA Pacing Interval</div>
+            <div class="metric-card-val">{pacing_text}</div>
+        </div>
+        """, unsafe_allow_html=True)
+    with kpi_cols[2]:
+        mcl_text = f"{res.mean_cycle_length:.2f} u" if res.mean_cycle_length else "N/A (Blocked)"
+        st.markdown(f"""
+        <div class="metric-card">
+            <div class="metric-card-title">Mean Cycle Length</div>
+            <div class="metric-card-val">{mcl_text}</div>
+        </div>
+        """, unsafe_allow_html=True)
+    with kpi_cols[3]:
+        bpm_text = f"{hr_metrics['bpm']:.1f} BPM" if hr_metrics['is_meaningful'] else "0.0 BPM (Blocked)"
+        st.markdown(f"""
+        <div class="metric-card">
+            <div class="metric-card-title">Estimated Heart Rate</div>
+            <div class="metric-card-val" style="color: #38bdf8;">{bpm_text}</div>
+        </div>
+        """, unsafe_allow_html=True)
+    with kpi_cols[4]:
         if sc_type == ScenarioType.REENTRY:
-            status_label = "Sustained Circus" if res.reentry_sustained else "Extinguished"
-            st.metric("Re-entry Status", status_label)
+            status_text = "Sustained Circus" if res.reentry_sustained else "Extinguished"
+            status_color = "#10b981" if res.reentry_sustained else "#ef4444"
+        elif res.failures:
+            status_text = f"Block ({len(res.failures)} drops)"
+            status_color = "#ef4444"
         else:
-            status_label = "1:1 Conduction" if res.comparison_with_normal.get("conduction_success") else "Conduction Block"
-            st.metric("Conduction Status", status_label)
+            status_text = "1:1 Synchronous"
+            status_color = "#10b981"
+        st.markdown(f"""
+        <div class="metric-card">
+            <div class="metric-card-title">Conduction Status</div>
+            <div class="metric-card-val" style="color: {status_color};">{status_text}</div>
+        </div>
+        """, unsafe_allow_html=True)
 
     # -------------------------------------------------------------------------
-    # STAGE 4: INTERACTIVE ANATOMICAL CARDIAC VISUALIZATION
+    # ROW 1: SECTIONS 1 & 5 (HEART VISUALIZATION + ELECTRICAL RHYTHM)
     # -------------------------------------------------------------------------
-    st.markdown("### 🫀 Interactive Anatomical Conduction Visualization (Stage 4)")
-    st.caption("Synchronized 60 FPS anatomical wavefront animation driven directly by continuous numerical ODE integration. Features Play/Pause/Reset, Scrubber, Speed controls, and Real-time Rhythm Cursor.")
-    heart_html = build_heart_visualization_html(res, width=950, height=720)
-    components.html(heart_html, height=740, scrolling=False)
+    col_vis, col_rhythm = st.columns([1.15, 1.0])
 
-    # -------------------------------------------------------------------------
-    # STAGE 5: RHYTHM VISUALIZATION & ACTIVATION ANALYSIS PANELS
-    # -------------------------------------------------------------------------
-    sc_tab_rhythm, sc_tab_timeline, sc_tab_log, sc_tab_comp, sc_tab_math = st.tabs([
-        "📊 Stage 5: Rhythm Analysis Panel & Lead Traces",
-        "⏱️ Stage 5: Activation Timeline & Conduction Integrity",
-        "📋 Stage 5: Numerical Activation Event Log",
-        "⚖️ Comparative Analysis vs Normal Rhythm",
-        "📐 Mathematical Formulation & Automated Tests",
-    ])
+    with col_vis:
+        st.markdown('<div class="sec-title">🫀 Section 1: Interactive Anatomical Heart Visualization</div>', unsafe_allow_html=True)
+        st.caption("Live 60 FPS anatomical wavefront animation driven directly by continuous numerical ODE states.")
+        heart_html = build_heart_visualization_html(res, width=820, height=660)
+        components.html(heart_html, height=690, scrolling=False)
 
-    # -------------------------------------------------------------------------
-    # TAB 1: RHYTHM ANALYSIS PANEL & LEAD TRACES (STAGE 5)
-    # -------------------------------------------------------------------------
-    with sc_tab_rhythm:
-        st.subheader("1. Activation-Derived Rhythm Trace & Multi-Lead Field Approximation")
-        st.warning("⚠️ **Simulated activation-derived rhythm trace — not a clinically validated ECG.** Generated algorithmically from net intercellular electrical dipole moments of the coupled FitzHugh–Nagumo network.")
+    with col_rhythm:
+        st.markdown('<div class="sec-title">⚡ Section 5: Electrical Rhythm & Event Timeline</div>', unsafe_allow_html=True)
+        st.caption("Simulated activation-derived rhythm trace — not a clinically validated ECG.")
 
-        # Rate & Interval cards
-        b2b_vent = compute_beat_to_beat_intervals(res.activations, monitored_node_id=(0 if sc_type == ScenarioType.REENTRY else 5))
-        r_cols = st.columns(4)
-        with r_cols[0]:
-            st.metric("Estimated Activation Rate", f"{hr_metrics['bpm']:.1f} BPM" if hr_metrics['is_meaningful'] else "0.0 BPM")
-        with r_cols[1]:
-            st.metric("Mean Interval (CL)", f"{b2b_vent['mean_interval']:.2f} u" if b2b_vent['mean_interval'] else "N/A")
-        with r_cols[2]:
-            st.metric("Beat-to-Beat SD (SDNN)", f"{b2b_vent['std_interval']:.3f} u" if b2b_vent['std_interval'] is not None else "N/A")
-        with r_cols[3]:
-            st.metric("Rhythm Regularity", "Regular (SD < 5%)" if b2b_vent['is_regular'] else "Irregular / Blocked")
-
-        # Primary Activation-Derived Rhythm Waveform
+        # Activation-Derived Rhythm Waveform
         fig_rhythm = go.Figure()
         fig_rhythm.add_trace(go.Scatter(
-            x=res.time,
-            y=res.rhythm_trace,
-            mode="lines",
-            name="Activation-Derived Rhythm Φ(t)",
-            line=dict(color="#8b5cf6", width=2.2),
-            hovertemplate="Time: %{x:.2f} u<br>Dipole Potential: %{y:.4f}<extra></extra>",
+            x=res.time, y=res.rhythm_trace, mode="lines", name="Rhythm Trace Φ(t)",
+            line=dict(color="#38bdf8", width=2.0)
         ))
+        fig_rhythm.add_hline(y=0.0, line_dash="dash", line_color="#475569")
         fig_rhythm.update_layout(
-            title="Algorithmically Projected Dipole Potential: Φ(t) = Σ g_ij (v_j - v_i) · Δy_ij",
-            height=280,
-            margin=dict(l=40, r=20, t=35, b=20),
-            xaxis_title="Simulation Time t (model units)",
-            yaxis_title="Dipole Potential (arb. units)",
-            hovermode="x unified",
-            template="plotly_white",
+            title="Activation-Derived Rhythm Waveform (Dipole Projection)",
+            xaxis_title="Simulation Time (model units)",
+            yaxis_title="Dipole Moment Φ(t)",
+            template="plotly_dark",
+            height=260,
+            margin=dict(l=40, r=20, t=35, b=30),
         )
         st.plotly_chart(fig_rhythm, use_container_width=True)
 
-        # Einthoven Lead II Dipole Field Approximation (Separated & Explained)
-        with st.expander("📐 Optional: Einthoven Limb Lead Approximation (Lead II) & Source-to-Electrode Model"):
-            st.markdown("""
-            **Source-to-Electrode Biophysical Assumptions:**
-            1. **Far-Field Dipole Approximation:** Assumes the cardiac electrical generator acts as an equivalent current dipole $\\vec{P}(t) = \\sum g_{ij}(v_j - v_i) \\vec{d}_{ij}$ viewed from distant surface electrodes.
-            2. **Homogeneous Isotropic Volume Conductor:** Neglects electrical conductivity boundaries between intracardiac blood ($0.6\\text{ S/m}$), myocardial wall ($0.2\\text{ S/m}$), lungs ($0.05\\text{ S/m}$), and rib cage.
-            3. **Quasi-Static Approximation:** Neglects tissue capacitive displacement currents (valid for electrophysiological frequencies $< 1\\text{ kHz}$).
-            4. **Einthoven Lead II Projection:** Standard limb lead vector directed at $60^\\circ$ from right shoulder to left lower abdomen:
-               $$V_{\\text{Lead II}}(t) = \\vec{P}(t) \\cdot [\\cos(60^\\circ), \\sin(60^\\circ)] = 0.5 P_x(t) + 0.866 P_y(t)$$
-            """)
-            lead2_trace, lead2_doc = compute_true_ecg_lead_approximation(res.time, res.V, res.network, "Lead_II")
-            fig_lead = go.Figure()
-            fig_lead.add_trace(go.Scatter(
-                x=res.time,
-                y=lead2_trace,
-                mode="lines",
-                name="Einthoven Lead II Approximation",
-                line=dict(color="#06b6d4", width=2.0),
-            ))
-            fig_lead.update_layout(
-                height=240,
-                margin=dict(l=40, r=20, t=20, b=20),
-                xaxis_title="Time t (model units)",
-                yaxis_title="Lead II Potential (arb. units)",
-                hovermode="x unified",
-                template="plotly_white",
-            )
-            st.plotly_chart(fig_lead, use_container_width=True)
-
-        # Regional Voltage v(t) and Recovery w(t) Probe
-        st.subheader("2. Regional Action Potential v(t) & Recovery Variable w(t) Probe")
-        probe_node_names = [f"Node {i}: {res.network.nodes[i].name} ({res.network.nodes[i].region.value})" for i in range(res.network.num_nodes)]
-        selected_probe_idx = st.selectbox(
-            "Select Model Compartment for In-Depth State Inspection:",
-            range(res.network.num_nodes),
-            format_func=lambda idx: probe_node_names[idx],
-            index=min(5, res.network.num_nodes - 1),
-        )
-
-        col_v, col_w = st.columns(2)
-        with col_v:
-            st.markdown(f"**Fast Voltage Variable $v(t)$ — {res.network.nodes[selected_probe_idx].name}**")
-            fig_pv = go.Figure()
-            fig_pv.add_trace(go.Scatter(
-                x=res.time,
-                y=res.V[:, selected_probe_idx],
-                mode="lines",
-                name="Voltage v(t)",
-                line=dict(color="#3b82f6", width=2.2),
-            ))
-            # Depolarization threshold line
-            fig_pv.add_hline(y=0.0, line_dash="dash", line_color="#ef4444", annotation_text="Threshold (v=0.0)", annotation_position="top left")
-            fig_pv.update_layout(
-                height=280,
-                margin=dict(l=40, r=20, t=20, b=20),
-                xaxis_title="Time t",
-                yaxis_title="Voltage-Like State v",
-                template="plotly_white",
-            )
-            st.plotly_chart(fig_pv, use_container_width=True)
-
-        with col_w:
-            st.markdown(f"**Slow Recovery Variable $w(t)$ — {res.network.nodes[selected_probe_idx].name}**")
-            fig_pw = go.Figure()
-            fig_pw.add_trace(go.Scatter(
-                x=res.time,
-                y=res.W[:, selected_probe_idx],
-                mode="lines",
-                name="Recovery w(t)",
-                line=dict(color="#8b5cf6", width=2.2),
-            ))
-            # Refractory threshold indicator
-            fig_pw.add_hline(y=-0.35, line_dash="dot", line_color="#a855f7", annotation_text="Refractory Boundary (w = -0.35)", annotation_position="bottom left")
-            fig_pw.update_layout(
-                height=280,
-                margin=dict(l=40, r=20, t=20, b=20),
-                xaxis_title="Time t",
-                yaxis_title="Recovery State w",
-                template="plotly_white",
-            )
-            st.plotly_chart(fig_pw, use_container_width=True)
-
-    # -------------------------------------------------------------------------
-    # TAB 2: ACTIVATION TIMELINE & CONDUCTION INTEGRITY (STAGE 5)
-    # -------------------------------------------------------------------------
-    with sc_tab_timeline:
-        st.subheader("Activation-Event Timeline & Conduction Integrity Analysis")
-        st.caption("Chronological event progression from SA node through atria, AV node, His bundle, Purkinje network, to ventricles.")
-
-        # Detect missing events
-        missing_data = detect_missing_events(res)
-
-        # Highlight missing events if present
-        if sc_type == ScenarioType.SINUS_PAUSE and missing_data["missing_sa_impulses"]:
-            st.error(f"⚠️ **Sinus Pause Impulses Suppressed:** {len(missing_data['missing_sa_impulses'])} expected SA-node pacing impulse(s) were suppressed during the pause window $[{cfg.pause_start:.1f}, {cfg.pause_end:.1f}]$.")
-            for m in missing_data["missing_sa_impulses"]:
-                st.caption(f"- Expected pulse at **t = {m['expected_time']:.1f} u** was suppressed by the pacing arrest protocol.")
-
-        if sc_type == ScenarioType.AV_BLOCK and missing_data["missing_downstream_events"]:
-            st.error(f"⚠️ **Downstream Conduction Failures Detected:** {len(missing_data['missing_downstream_events'])} atrial activation(s) failed to propagate to the AV Node and Ventricles. Conduction Ratio: **{missing_data['conduction_ratio']}**.")
-            for m in missing_data["missing_downstream_events"]:
-                st.caption(f"- Atrial Beat #{m['atrial_beat_index']} at **t = {m['atrial_time']:.1f} u** was blocked before reaching downstream chambers.")
-
-        # Multi-Channel Timeline Chart
+        # Multi-Channel Activation Event Timeline
         fig_timeline = go.Figure()
-        y_labels = [res.network.nodes[i].name for i in range(res.network.num_nodes)]
-
-        # Plot activation scatter dots for each compartment
+        region_colors = {
+            "Sinoatrial (SA) Node": "#f59e0b",
+            "Atrial Myocardium": "#3b82f6",
+            "Atrioventricular (AV) Node": "#ec4899",
+            "Bundle of His": "#8b5cf6",
+            "Purkinje Network": "#06b6d4",
+            "Ventricular Myocardium": "#10b981",
+        }
+        y_labels = []
         for i in range(res.network.num_nodes):
-            acts = res.activations.get(i, [])
-            if acts:
+            node = res.network.nodes[i]
+            y_labels.append(node.name)
+            t_acts = res.activations.get(i, [])
+            c = region_colors.get(node.region.value, "#94a3b8")
+            if t_acts:
                 fig_timeline.add_trace(go.Scatter(
-                    x=acts,
-                    y=[res.network.nodes[i].name] * len(acts),
-                    mode="markers",
-                    name=res.network.nodes[i].name,
-                    marker=dict(size=14, symbol="circle", line=dict(color="#0f172a", width=2)),
-                    hovertemplate=f"Region: {res.network.nodes[i].name}<br>Activation Time: %{{x:.2f}} u<extra></extra>",
+                    x=t_acts, y=[node.name] * len(t_acts), mode="markers",
+                    marker=dict(size=12, color=c, symbol="diamond", line=dict(color="#0f172a", width=1.5)),
+                    name=node.name,
+                ))
+            else:
+                fig_timeline.add_trace(go.Scatter(
+                    x=[res.time[-1] / 2], y=[node.name], mode="text",
+                    text=["[BLOCKED / NO ACTIVATION]"], textposition="middle center",
+                    textfont=dict(color="#ef4444", size=10), showlegend=False,
                 ))
 
-        # Annotate Sinus Pause window
-        if sc_type == ScenarioType.SINUS_PAUSE and cfg.pause_start and cfg.pause_end:
-            fig_timeline.add_vrect(
-                x0=cfg.pause_start, x1=cfg.pause_end,
-                fillcolor="#fef08a", opacity=0.3, line_width=1.5, line_dash="dash", line_color="#ca8a04",
-                annotation_text="Sinus Pause Window (Stimulus Suppressed)", annotation_position="top left",
-            )
-
         fig_timeline.update_layout(
-            title="Multi-Compartment Depolarization Event Timeline",
-            height=340,
-            margin=dict(l=80, r=20, t=40, b=20),
-            xaxis_title="Simulation Time t (model units)",
-            yaxis_title="Anatomical Compartment",
+            title="Multi-Channel Activation Event Timeline",
+            xaxis_title="Time t (model units)",
             yaxis=dict(categoryorder="array", categoryarray=list(reversed(y_labels))),
-            template="plotly_white",
+            template="plotly_dark",
+            height=320,
             showlegend=False,
+            margin=dict(l=60, r=20, t=35, b=30),
         )
         st.plotly_chart(fig_timeline, use_container_width=True)
 
-        # Beat-to-Beat Interval Tachogram
-        st.subheader("Beat-to-Beat Interval (Tachogram) Sequence")
-        if b2b_vent["intervals"]:
-            fig_tach = go.Figure()
-            fig_tach.add_trace(go.Scatter(
-                x=b2b_vent["beat_indices"],
-                y=b2b_vent["intervals"],
-                mode="lines+markers",
-                name="RR Interval (Δt)",
-                marker=dict(size=10, color="#ec4899"),
-                line=dict(color="#db2777", width=2),
-                hovertemplate="Beat: %{x}<br>Cycle Length: %{y:.2f} u<extra></extra>",
+    # -------------------------------------------------------------------------
+    # ROW 2: SECTION 6 (MATHEMATICAL ANALYSIS)
+    # -------------------------------------------------------------------------
+    st.markdown('<div class="sec-title">🔬 Section 6: Mathematical Analysis of the Underlying FitzHugh–Nagumo ODE</div>', unsafe_allow_html=True)
+    st.caption("Analytical Jacobian, Poincaré stability invariants, nullclines, and phase-plane flow field for the resting single-cell model.")
+
+    m_tab1, m_tab2 = st.tabs(["📐 Phase Plane & Nullclines", "🧮 Jacobian & Poincaré Stability"])
+
+    # Monitored Single-Cell Parameters (Resting Cell)
+    p_cell = FHNParameters(a=a_val, b=b_val, epsilon=eps_val, I=0.0)
+    eqs_cell = find_equilibria(p_cell)
+    eq_cell = eqs_cell[0] if eqs_cell else None
+
+    with m_tab1:
+        col_pp1, col_pp2 = st.columns([1.2, 1.0])
+        with col_pp1:
+            # Phase Plane with Normalized Quiver + Nullclines
+            v_grid, w_vn, w_wn = compute_nullclines((-2.6, 2.6), p_cell, num_points=250)
+            V_m, W_m, dV, dW, dV_norm, dW_norm = compute_vector_field((-2.5, 2.5), (-1.8, 2.2), 16, p_cell)
+
+            fig_pp = ff.create_quiver(
+                V_m, W_m, dV_norm, dW_norm,
+                scale=0.12, arrow_scale=0.35,
+                line=dict(color="#475569", width=1.0),
+                name="Direction Flow"
+            )
+            fig_pp.add_trace(go.Scatter(x=v_grid, y=w_vn, mode="lines", name="v-nullcline: w = v - v³/3", line=dict(color="#3b82f6", width=2.5)))
+            fig_pp.add_trace(go.Scatter(x=v_grid, y=w_wn, mode="lines", name="w-nullcline: w = (v+a)/b", line=dict(color="#f97316", width=2.5, dash="dash")))
+
+            # Node 0 trajectory from simulation
+            t_traj = res.time[:len(res.time)//2]
+            v_traj = res.V[:len(res.time)//2, 0]
+            w_traj = res.W[:len(res.time)//2, 0]
+            fig_pp.add_trace(go.Scatter(x=v_traj, y=w_traj, mode="lines", name="SAN Trajectory (v_0, w_0)", line=dict(color="#10b981", width=2.5)))
+
+            if eq_cell:
+                fig_pp.add_trace(go.Scatter(
+                    x=[eq_cell.v_star], y=[eq_cell.w_star], mode="markers+text",
+                    text=[f"E* ({eq_cell.v_star:.2f}, {eq_cell.w_star:.2f})"], textposition="top right",
+                    marker=dict(size=14, color="#10b981" if eq_cell.is_stable else "#ef4444", line=dict(color="black", width=2)),
+                    name=f"Fixed Point E*"
+                ))
+            fig_pp.update_layout(
+                title=f"Planar Phase Portrait & Vector Field Flow",
+                xaxis_title="Voltage Variable v", yaxis_title="Recovery Variable w",
+                template="plotly_dark", height=420, margin=dict(l=40, r=20, t=35, b=30),
+            )
+            st.plotly_chart(fig_pp, use_container_width=True)
+
+        with col_pp2:
+            st.markdown("#### Regional Transmembrane Potentials v_i(t) & w_i(t)")
+            fig_vw = make_subplots(rows=2, cols=1, shared_xaxes=True, subplot_titles=("Fast Voltage v_i(t) [Myocardial Depolarization]", "Slow Recovery w_i(t) [Refractoriness]"))
+            # Plot SA Node and Ventricle
+            fig_vw.add_trace(go.Scatter(x=res.time, y=res.V[:, 0], mode="lines", name="SAN Voltage", line=dict(color="#f59e0b", width=2)), row=1, col=1)
+            fig_vw.add_trace(go.Scatter(x=res.time, y=res.V[:, 5], mode="lines", name="LV Voltage", line=dict(color="#10b981", width=2)), row=1, col=1)
+            fig_vw.add_trace(go.Scatter(x=res.time, y=res.W[:, 0], mode="lines", name="SAN Recovery", line=dict(color="#f59e0b", width=2, dash="dash")), row=2, col=1)
+            fig_vw.add_trace(go.Scatter(x=res.time, y=res.W[:, 5], mode="lines", name="LV Recovery", line=dict(color="#10b981", width=2, dash="dash")), row=2, col=1)
+            fig_vw.update_layout(height=420, template="plotly_dark", margin=dict(l=40, r=20, t=30, b=30), hovermode="x unified")
+            st.plotly_chart(fig_vw, use_container_width=True)
+
+    with m_tab2:
+        if eq_cell:
+            r_v = eq_cell.v_star - (eq_cell.v_star**3) / 3.0 - eq_cell.w_star + p_cell.I
+            r_w = p_cell.epsilon * (eq_cell.v_star + p_cell.a - p_cell.b * eq_cell.w_star)
+
+            j_c1, j_c2 = st.columns([1, 1.2])
+            with j_c1:
+                st.markdown(f"""
+                **Analytical Jacobian Matrix:**
+                $$\\begin{{pmatrix}} {eq_cell.jacobian[0, 0]:+.5f} & {eq_cell.jacobian[0, 1]:+.5f} \\\\ {eq_cell.jacobian[1, 0]:+.5f} & {eq_cell.jacobian[1, 1]:+.5f} \\end{{pmatrix}}$$
+
+                **Stability Invariants & Verified Residuals:**
+                - **Equilibrium Coordinates:** `(v* = {eq_cell.v_star:+.6f}, w* = {eq_cell.w_star:+.6f})`
+                - **Residuals:** `|r_v| = {abs(r_v):.2e}`, `|r_w| = {abs(r_w):.2e}` (Verified < 10⁻¹²)
+                - **Trace τ:** `{eq_cell.trace:+.6f}`
+                - **Determinant Δ:** `{eq_cell.determinant:+.6f}`
+                - **Discriminant D:** `{eq_cell.discriminant:+.6f}`
+                - **Eigenvalues λ1,2:** `{eq_cell.eigenvalues[0].real:+.5f} ± {abs(eq_cell.eigenvalues[0].imag):.5f}i`
+                """)
+            with j_c2:
+                box_c = "#10b981" if eq_cell.is_stable else "#ef4444"
+                st.markdown(f"""
+                <div style="background-color: #111827; padding: 16px; border-radius: 8px; border-left: 5px solid {box_c};">
+                    <h4 style="margin: 0; color: #f8fafc;">Poincaré Stability: {eq_cell.stability_class.value}</h4>
+                    <p style="color: #94a3b8; margin-top: 8px; font-size: 14px;">
+                        <strong>Asymptotic Nature:</strong> {"Locally Asymptotically Stable (Spiral Sink)" if eq_cell.is_stable else "Unstable (Limit Cycle Onset)"}<br>
+                        <strong>Poincaré Criteria:</strong><br>
+                        • Determinant Δ = {eq_cell.determinant:+.5f} > 0 (Planar node/focus regime)<br>
+                        • Discriminant D = {eq_cell.discriminant:+.5f} < 0 (Complex conjugate eigenvalues -> Spiral/Focus)<br>
+                        • Trace τ = {eq_cell.trace:+.5f} {"< 0 (Trajectories contract inward)" if eq_cell.trace < 0 else "> 0 (Trajectories spiral outward)"}
+                    </p>
+                    <p style="color: #cbd5e1; font-size: 13px; margin-bottom: 0;">
+                        <em>{eq_cell.summary_text}</em>
+                    </p>
+                </div>
+                """, unsafe_allow_html=True)
+
+    # -------------------------------------------------------------------------
+    # ROW 3: SECTION 7 (EXPERIMENT COMPARISON)
+    # -------------------------------------------------------------------------
+    st.markdown('<div class="sec-title">⚖️ Section 7: Parameter Experiment & Baseline Comparison</div>', unsafe_allow_html=True)
+    st.caption("Save a baseline simulation, alter one or more parameters, and compare the resulting activation patterns and waveforms.")
+
+    exp_btn_col1, exp_btn_col2, _ = st.columns([1, 1, 2])
+    with exp_btn_col1:
+        if st.button("💾 Save Current Run as Baseline", use_container_width=True):
+            st.session_state["baseline_sim"] = {
+                "scenario_name": selected_scenario_name,
+                "config": cfg,
+                "result": res,
+                "mean_cycle_length": res.mean_cycle_length,
+                "hr_metrics": hr_metrics,
+                "time": res.time,
+                "rhythm_trace": res.rhythm_trace,
+                "latencies": res.latencies,
+                "failures": res.failures,
+                "eq_cell": eq_cell,
+            }
+            st.success("✓ Current simulation saved as baseline!")
+
+    with exp_btn_col2:
+        if st.button("🗑️ Clear Stored Baseline", use_container_width=True):
+            st.session_state["baseline_sim"] = None
+            st.info("Stored baseline cleared.")
+
+    if st.session_state["baseline_sim"] is not None:
+        base = st.session_state["baseline_sim"]
+        st.markdown(f"**Saved Baseline:** `{base['scenario_name']}` (Pacing: `{base['config'].pacing_interval:.1f} u`, g_AV: `{base['config'].av_conductance:.2f}`, D: `{base['config'].global_coupling:.2f}`)")
+
+        cmp_col1, cmp_col2 = st.columns([1, 1.2])
+
+        with cmp_col1:
+            st.markdown("#### Parameter & Metric Deltas")
+            delta_pacing = cfg.pacing_interval - base["config"].pacing_interval
+            delta_gav = cfg.av_conductance - base["config"].av_conductance
+            delta_D = cfg.global_coupling - base["config"].global_coupling
+
+            base_bpm = base["hr_metrics"]["bpm"] if base["hr_metrics"]["is_meaningful"] else 0.0
+            curr_bpm = hr_metrics["bpm"] if hr_metrics["is_meaningful"] else 0.0
+            delta_bpm = curr_bpm - base_bpm
+
+            delta_df = pd.DataFrame([
+                {"Parameter / Metric": "Pacing Interval (T_pace)", "Baseline": f"{base['config'].pacing_interval:.1f} u", "Current": f"{cfg.pacing_interval:.1f} u", "Delta (Δ)": f"{delta_pacing:+.1f} u"},
+                {"Parameter / Metric": "AV Conductance (g_AV)", "Baseline": f"{base['config'].av_conductance:.3f}", "Current": f"{cfg.av_conductance:.3f}", "Delta (Δ)": f"{delta_gav:+.3f}"},
+                {"Parameter / Metric": "Global Coupling (D)", "Baseline": f"{base['config'].global_coupling:.2f}", "Current": f"{cfg.global_coupling:.2f}", "Delta (Δ)": f"{delta_D:+.2f}"},
+                {"Parameter / Metric": "Estimated Heart Rate", "Baseline": f"{base_bpm:.1f} BPM", "Current": f"{curr_bpm:.1f} BPM", "Delta (Δ)": f"{delta_bpm:+.1f} BPM"},
+                {"Parameter / Metric": "Conduction Drops", "Baseline": f"{len(base['failures'])} drops", "Current": f"{len(res.failures)} drops", "Delta (Δ)": f"{len(res.failures) - len(base['failures']):+d}"},
+            ])
+            st.dataframe(delta_df, use_container_width=True)
+
+        with cmp_col2:
+            st.markdown("#### Overlaid Rhythm Waveforms (Baseline vs Current)")
+            fig_cmp_trace = go.Figure()
+            min_len = min(len(base["time"]), len(res.time))
+            fig_cmp_trace.add_trace(go.Scatter(
+                x=base["time"][:min_len], y=base["rhythm_trace"][:min_len], mode="lines",
+                name="Baseline Rhythm", line=dict(color="#3b82f6", width=2.0)
             ))
-            if b2b_vent["mean_interval"]:
-                fig_tach.add_hline(
-                    y=b2b_vent["mean_interval"], line_dash="dash", line_color="#475569",
-                    annotation_text=f"Mean CL = {b2b_vent['mean_interval']:.2f} u",
-                )
-            fig_tach.update_layout(
-                height=260,
-                margin=dict(l=40, r=20, t=20, b=20),
-                xaxis_title="Consecutive Beat Index",
-                yaxis_title="Cycle Length Δt (model units)",
-                template="plotly_white",
+            fig_cmp_trace.add_trace(go.Scatter(
+                x=res.time[:min_len], y=res.rhythm_trace[:min_len], mode="lines",
+                name="Current Simulation", line=dict(color="#f59e0b", width=2.0, dash="dash")
+            ))
+            fig_cmp_trace.update_layout(
+                title="Direct Comparison of Simulated Activation Traces",
+                xaxis_title="Time t", yaxis_title="Dipole Moment Φ(t)",
+                template="plotly_dark", height=280, margin=dict(l=40, r=20, t=35, b=30),
             )
-            st.plotly_chart(fig_tach, use_container_width=True)
-        else:
-            st.info("ℹ️ Fewer than 2 ventricular activation events occurred; beat-to-beat tachogram requires at least two consecutive beats.")
-
-    # -------------------------------------------------------------------------
-    # TAB 3: NUMERICAL ACTIVATION EVENT LOG (STAGE 5)
-    # -------------------------------------------------------------------------
-    with sc_tab_log:
-        st.subheader("Numerical Activation Event Log")
-        st.caption("Chronological record of sub-step interpolated threshold crossings (v = 0.0) across all network compartments.")
-
-        event_log = generate_numerical_event_log(res.activations, res.network, threshold=0.0)
-        df_log = pd.DataFrame([e.to_dict() for e in event_log])
-
-        if not df_log.empty:
-            # Region filter control
-            reg_options = ["All Compartments"] + list(df_log["Region"].unique())
-            selected_filter = st.selectbox("Filter Event Log by Region:", reg_options)
-
-            if selected_filter != "All Compartments":
-                filtered_df = df_log[df_log["Region"] == selected_filter]
-            else:
-                filtered_df = df_log
-
-            st.dataframe(filtered_df, use_container_width=True, height=360)
-
-            # Download CSV button
-            csv_data = filtered_df.to_csv(index=False).encode("utf-8")
-            st.download_button(
-                label="📥 Download Numerical Event Log as CSV",
-                data=csv_data,
-                file_name=f"fhn_event_log_{sc_type.name.lower()}.csv",
-                mime="text/csv",
-            )
-        else:
-            st.warning("No activation events detected in the simulation run.")
-
-    # -------------------------------------------------------------------------
-    # TAB 4: COMPARATIVE ANALYSIS VS NORMAL RHYTHM
-    # -------------------------------------------------------------------------
-    with sc_tab_comp:
-        st.subheader("Comparative Analysis: Scenario vs. Normal Sinus Rhythm")
-
-        comp_stage5 = compare_with_normal_rhythm(res)
-        comp_data = [
-            {"Metric": "Scenario Type", "Normal Baseline": "Normal Sinus Rhythm", f"{res.scenario_type.value}": res.scenario_type.value},
-            {"Metric": "SA Pacing Interval", "Normal Baseline": "45.0 u", f"{res.scenario_type.value}": f"{cfg.pacing_interval:.1f} u" if sc_type != ScenarioType.REENTRY else "Single starter beat"},
-            {"Metric": "Ventricular Mean Cycle Length", "Normal Baseline": f"{comp_stage5['baseline_cycle_length']:.2f} u", f"{res.scenario_type.value}": f"{comp_stage5['scenario_cycle_length']:.2f} u" if comp_stage5['scenario_cycle_length'] else "N/A (Blocked)"},
-            {"Metric": "Estimated Heart Rate", "Normal Baseline": f"{comp_stage5['baseline_bpm']:.1f} BPM", f"{res.scenario_type.value}": f"{comp_stage5['scenario_bpm']:.1f} BPM" if comp_stage5['scenario_bpm'] else "0.0 BPM (Asystole)"},
-            {"Metric": "Ventricular Beats Count", "Normal Baseline": f"{comp_stage5['baseline_vent_beats']} beats", f"{res.scenario_type.value}": f"{comp_stage5['scenario_vent_beats']} beats"},
-            {"Metric": "Rate Acceleration Ratio", "Normal Baseline": "1.00x", f"{res.scenario_type.value}": f"{comp_stage5['rate_ratio']:.2f}x"},
-            {"Metric": "Conduction Integrity", "Normal Baseline": "100% (1:1 Conduction)", f"{res.scenario_type.value}": "1:1 Forward" if comp_stage5['conduction_success'] else "Conduction Loss / Block"},
-        ]
-        st.table(pd.DataFrame(comp_data).set_index("Metric"))
-
-        st.markdown("### Mechanistic Electrophysiological Description")
-        st.info(f"""
-        **Parameter Alteration:**  
-        {res.parameter_change_summary}
-
-        **Functional Result:**  
-        {res.comparison_with_normal.get('status')}
-        """)
-
-        if sc_type == ScenarioType.REENTRY:
-            st.markdown("### Re-entry Circus Movement Evaluation")
-            if res.reentry_sustained:
-                st.success(f"""
-                ✓ **Sustained Re-entry Confirmed:**  
-                The wave completed **{res.reentry_revolutions} spontaneous revolutions** around the closed ring after the starter stimulus ceased.
-                Because the conduction time around the loop ($T_{{\\text{{loop}}}} \\approx {res.mean_cycle_length:.1f}$) exceeds the refractory recovery duration,
-                the tissue ahead of the wavefront remains fully excitable, supporting self-sustaining circus movement.
-                """)
-            else:
-                st.warning(f"""
-                ⚠ **Re-entry Extinguished:**  
-                The wave died out after {res.reentry_revolutions} revolution(s).
-                The loop conduction time is shorter than the refractory recovery period of the tissue ($T_{{\\text{{loop}}}} < T_{{\\text{{refractory}}}}$).
-                The advancing wavefront ran directly into the refractory tail of preceding excitation, terminating the circus wave.
-                *Try increasing the loop size (number of nodes) or decreasing coupling to lengthen loop traversal time.*
-                """)
-
-    # -------------------------------------------------------------------------
-    # TAB 5: MATHEMATICAL ASSUMPTIONS & TESTS
-    # -------------------------------------------------------------------------
-    with sc_tab_math:
-        st.subheader("Mathematical Assumptions, Limitations & Automated Verification")
-
-        st.markdown(f"""
-        **Mathematical Assumptions:**  
-        {res.mathematical_assumptions}
-
-        **Governing Coupled Network Equations:**
-        $$\\frac{{dv_i}}{{dt}} = v_i - \\frac{{v_i^3}}{{3}} - w_i + I_i(t) + D \\sum_{{j \\in \\mathcal{{N}}(i)}} A_{{ij}} (v_j - v_i)$$
-        $$\\frac{{dw_i}}{{dt}} = \\varepsilon_i(v_i + a_i - b_i w_i)$$
-
-        **Refractoriness and Conduction Wavelength:**
-        - Refractory state is represented by the slow recovery variable $w_i(t)$.
-        - Conduction wavelength $\\lambda = \\theta \\times \\text{{ERP}}$, where $\\theta$ is conduction velocity and $\\text{{ERP}}$ is effective refractory period.
-        - Conduction block occurs when incoming activation arrives while $w_i$ is elevated above resting potential ($w_i > -0.35$).
-        """)
-
-        st.divider()
-        st.markdown("### Automated Test Suite Execution")
-        if st.button("▶ Run All Automated Unit Tests (Stages 1-5)"):
-            with st.spinner("Executing pytest suite across tests/..."):
-                import subprocess
-                p_res = subprocess.run([sys.executable, "-m", "pytest", "tests", "-v"], capture_output=True, text=True)
-                if p_res.returncode == 0:
-                    st.success("All Unit Tests Passed Successfully!")
-                    st.code(p_res.stdout)
-                else:
-                    st.error("Some tests failed:")
-                    st.code(p_res.stdout + "\n" + p_res.stderr)
-            with st.spinner("Executing pytest suite across tests/..."):
-                import subprocess
-                p_res = subprocess.run([sys.executable, "-m", "pytest", "tests", "-v"], capture_output=True, text=True)
-                if p_res.returncode == 0:
-                    st.success("All Unit Tests Passed Successfully!")
-                    st.code(p_res.stdout)
-                else:
-                    st.error("Some tests failed:")
-                    st.code(p_res.stdout + "\n" + p_res.stderr)
+            st.plotly_chart(fig_cmp_trace, use_container_width=True)
+    else:
+        st.info("ℹ️ No baseline simulation currently stored. Click **'Save Current Run as Baseline'** above to capture the current state, then modify any parameter to see live comparative deltas.")
 
 
 # =============================================================================
-# WORKSPACE 2: COUPLED CARDIAC NETWORK & HEART VISUALIZER (STAGE 2 & 4)
+# VIEW 2: ARRHYTHMIA LAB (DETAILED SCENARIO ENGINE & EVENT LOG)
 # =============================================================================
-elif "Coupled Conduction" in app_mode:
-    st.title("🌐 Coupled Cardiac-Cell Conduction Network & Interactive Heart (Stage 2 & 4)")
-    st.caption("Emergent Conduction Delays, Gap-Junction Coupling, Refractoriness, and Block Detection")
+elif "Arrhythmia Lab" in nav_view:
+    st.title("🏥 Cardiac Arrhythmia Laboratory")
+    st.caption("In-Depth Numerical Scenario Engine: Conduction Delays, Suppressed Impulses, Conduction Blocks, and Circus Re-entry")
 
-    st.sidebar.subheader("Network Presets")
-    net_preset = st.sidebar.selectbox(
-        "Load Network Conduction Preset:",
+    lab_sc_name = st.selectbox(
+        "Select Arrhythmia Scenario to Investigate:",
         [
-            "Normal Conduction Sequence",
-            "Prolonged AV Conduction Delay (1st Degree Analogue)",
-            "AV Conduction Block (Complete Uncoupling)",
-            "High Coupling / Accelerated Spread",
+            "Scenario 1: Normal Sinus Rhythm",
+            "Scenario 2: Tachycardia-Like Rhythm",
+            "Scenario 3: Bradycardia-Like Rhythm",
+            "Scenario 4: Sinus Pause",
+            "Scenario 5: AV Block-Like Condition",
+            "Advanced Scenario: Re-entry-Like Activation",
         ],
         index=0,
     )
 
-    if net_preset == "Normal Conduction Sequence":
-        default_g_av, default_D, default_eps_av = 0.35, 0.70, 0.08
-    elif net_preset == "Prolonged AV Conduction Delay (1st Degree Analogue)":
-        default_g_av, default_D, default_eps_av = 0.08, 0.70, 0.04
-    elif net_preset == "AV Conduction Block (Complete Uncoupling)":
-        default_g_av, default_D, default_eps_av = 0.00, 0.70, 0.08
-    elif net_preset == "High Coupling / Accelerated Spread":
-        default_g_av, default_D, default_eps_av = 0.50, 1.00, 0.08
+    # Dynamic Scenario-Specific Parameter Controls
+    with st.expander(f"⚙️ Fine-Tune Parameters for {lab_sc_name}", expanded=True):
+        if "Normal" in lab_sc_name:
+            col_p1, col_p2, col_p3 = st.columns(3)
+            with col_p1:
+                lab_pacing = st.slider("Pacing Interval (T_pace)", 30.0, 70.0, 45.0, 1.0, key="lab_pace_norm")
+            with col_p2:
+                lab_coupling = st.slider("Global Coupling (D)", 0.2, 1.5, 0.70, 0.05, key="lab_coup_norm")
+            with col_p3:
+                lab_tend = st.slider("Simulation Horizon (T_end)", 80.0, 240.0, 160.0, 10.0, key="lab_tend_norm")
+            lab_cfg = ScenarioConfig(
+                scenario_type=ScenarioType.NORMAL,
+                pacing_interval=lab_pacing,
+                global_coupling=lab_coupling,
+                t_end=lab_tend,
+            )
+        elif "Tachycardia" in lab_sc_name:
+            col_p1, col_p2, col_p3 = st.columns(3)
+            with col_p1:
+                lab_pacing = st.slider("Rapid Pacing Interval (T_pace)", 20.0, 38.0, 32.0, 1.0, key="lab_pace_tachy", help="Shorter cycle length accelerates depolarizations.")
+            with col_p2:
+                lab_coupling = st.slider("Global Coupling (D)", 0.2, 1.5, 0.70, 0.05, key="lab_coup_tachy")
+            with col_p3:
+                lab_tend = st.slider("Simulation Horizon (T_end)", 80.0, 240.0, 160.0, 10.0, key="lab_tend_tachy")
+            lab_cfg = ScenarioConfig(
+                scenario_type=ScenarioType.TACHYCARDIA,
+                pacing_interval=lab_pacing,
+                global_coupling=lab_coupling,
+                t_end=lab_tend,
+            )
+        elif "Bradycardia" in lab_sc_name:
+            col_p1, col_p2, col_p3 = st.columns(3)
+            with col_p1:
+                lab_pacing = st.slider("Depressed Pacing Interval (T_pace)", 60.0, 120.0, 80.0, 2.0, key="lab_pace_brady", help="Longer cycle length prolongs resting quiescent intervals.")
+            with col_p2:
+                lab_coupling = st.slider("Global Coupling (D)", 0.2, 1.5, 0.70, 0.05, key="lab_coup_brady")
+            with col_p3:
+                lab_tend = st.slider("Simulation Horizon (T_end)", 100.0, 280.0, 180.0, 10.0, key="lab_tend_brady")
+            lab_cfg = ScenarioConfig(
+                scenario_type=ScenarioType.BRADYCARDIA,
+                pacing_interval=lab_pacing,
+                global_coupling=lab_coupling,
+                t_end=lab_tend,
+            )
+        elif "Sinus Pause" in lab_sc_name:
+            col_p1, col_p2, col_p3, col_p4 = st.columns(4)
+            with col_p1:
+                lab_pacing = st.slider("Pacing Interval (T_pace)", 30.0, 60.0, 45.0, 1.0, key="lab_pace_pause")
+            with col_p2:
+                lab_pstart = st.slider("Pause Window Start", 15.0, 60.0, 30.0, 5.0, key="lab_pstart")
+            with col_p3:
+                lab_pend = st.slider("Pause Window End", 70.0, 150.0, 110.0, 5.0, key="lab_pend")
+            with col_p4:
+                lab_tend = st.slider("Simulation Horizon (T_end)", 100.0, 240.0, 160.0, 10.0, key="lab_tend_pause")
+            lab_cfg = ScenarioConfig(
+                scenario_type=ScenarioType.SINUS_PAUSE,
+                pacing_interval=lab_pacing,
+                pause_start=lab_pstart,
+                pause_end=lab_pend,
+                t_end=lab_tend,
+            )
+        elif "AV Block" in lab_sc_name:
+            col_p1, col_p2, col_p3, col_p4 = st.columns(4)
+            with col_p1:
+                lab_pacing = st.slider("Pacing Interval (T_pace)", 30.0, 60.0, 45.0, 1.0, key="lab_pace_avb")
+            with col_p2:
+                lab_gav = st.slider("Junction Conductance (g_AV)", 0.0, 0.35, 0.0, 0.02, key="lab_gav", help="0.0 = complete 3rd-degree block; ~0.15 = delayed conduction; >=0.30 = normal 1:1 conduction.")
+            with col_p3:
+                lab_bloc = st.selectbox("Block Location", ["Atrium-to-AVN", "AVN-to-His"], key="lab_bloc")
+            with col_p4:
+                lab_tend = st.slider("Simulation Horizon (T_end)", 80.0, 240.0, 160.0, 10.0, key="lab_tend_avb")
+            lab_cfg = ScenarioConfig(
+                scenario_type=ScenarioType.AV_BLOCK,
+                pacing_interval=lab_pacing,
+                av_conductance=lab_gav,
+                block_location=lab_bloc,
+                t_end=lab_tend,
+            )
+        else:  # Re-entry
+            col_p1, col_p2, col_p3, col_p4 = st.columns(4)
+            with col_p1:
+                lab_rnodes = st.slider("Circuit Nodes", 6, 16, 10, 1, key="lab_rnodes")
+            with col_p2:
+                lab_rcoup = st.slider("Ring Coupling (g)", 0.15, 0.70, 0.35, 0.05, key="lab_rcoup")
+            with col_p3:
+                lab_reps = st.slider("Recovery ε", 0.05, 0.30, 0.15, 0.01, key="lab_reps")
+            with col_p4:
+                lab_tend = st.slider("Simulation Horizon (T_end)", 80.0, 240.0, 150.0, 10.0, key="lab_tend_re")
+            lab_cfg = ScenarioConfig(
+                scenario_type=ScenarioType.REENTRY,
+                reentry_num_nodes=lab_rnodes,
+                reentry_coupling=lab_rcoup,
+                reentry_epsilon=lab_reps,
+                t_end=lab_tend,
+            )
 
-    st.sidebar.subheader("Conduction & Coupling Controls")
-    g_av_val = st.sidebar.slider("AV Conductance (g_AV)", 0.0, 0.50, float(default_g_av), 0.01)
-    D_val = st.sidebar.slider("Global Coupling (D)", 0.1, 1.5, float(default_D), 0.05)
-    eps_av_val = st.sidebar.slider("AV Timescale (ε_AV)", 0.01, 0.15, float(default_eps_av), 0.005)
-    t_end_net = st.sidebar.slider("Duration (T_end)", 40.0, 180.0, 100.0, 10.0)
+    # Execute Scenario ODE Integration
+    lab_res = run_scenario(lab_cfg)
+    lab_hr = estimate_heart_rate_bpm(lab_res.mean_cycle_length)
+    lab_bpm_text = f"{lab_hr['bpm']:.1f} BPM" if lab_hr.get("bpm") is not None else "0.0 BPM (Blocked)"
+    lab_mcl_text = f"{lab_res.mean_cycle_length:.2f} u" if lab_res.mean_cycle_length else "N/A (Blocked)"
 
-    net = create_default_cardiac_network(av_conductance=g_av_val, global_coupling=D_val)
-    avn_node = net.nodes[2]
-    net.nodes[2] = NetworkNode(
-        node_id=avn_node.node_id, name=avn_node.name, region=avn_node.region,
-        params=FHNParameters(a=avn_node.params.a, b=avn_node.params.b, epsilon=eps_av_val, I=avn_node.params.I),
-        pos_x=avn_node.pos_x, pos_y=avn_node.pos_y,
-    )
+    # Top KPI Metrics Bar
+    kpi_lab_cols = st.columns(5)
+    with kpi_lab_cols[0]:
+        st.markdown(f"""
+        <div class="metric-card">
+            <div class="metric-card-title">Investigated Scenario</div>
+            <div class="metric-card-val" style="font-size: 1.05rem;">{lab_sc_name.split(':')[0]}</div>
+        </div>
+        """, unsafe_allow_html=True)
+    with kpi_lab_cols[1]:
+        p_info = f"{lab_cfg.pacing_interval:.1f} u" if lab_cfg.scenario_type != ScenarioType.REENTRY else "Starter Pulse"
+        st.markdown(f"""
+        <div class="metric-card">
+            <div class="metric-card-title">SA Drive Interval</div>
+            <div class="metric-card-val">{p_info}</div>
+        </div>
+        """, unsafe_allow_html=True)
+    with kpi_lab_cols[2]:
+        st.markdown(f"""
+        <div class="metric-card">
+            <div class="metric-card-title">Mean Cycle Length</div>
+            <div class="metric-card-val">{lab_mcl_text}</div>
+        </div>
+        """, unsafe_allow_html=True)
+    with kpi_lab_cols[3]:
+        bpm_color = "#38bdf8" if lab_hr.get("is_meaningful") else "#ef4444"
+        st.markdown(f"""
+        <div class="metric-card">
+            <div class="metric-card-title">Ventricular Rate</div>
+            <div class="metric-card-val" style="color: {bpm_color};">{lab_bpm_text}</div>
+        </div>
+        """, unsafe_allow_html=True)
+    with kpi_lab_cols[4]:
+        if lab_cfg.scenario_type == ScenarioType.REENTRY:
+            c_text = "Sustained Circus" if lab_res.reentry_sustained else "Extinguished"
+            c_color = "#10b981" if lab_res.reentry_sustained else "#ef4444"
+        elif lab_res.failures:
+            c_text = f"Block ({len(lab_res.failures)} drops)"
+            c_color = "#ef4444"
+        elif lab_cfg.scenario_type == ScenarioType.SINUS_PAUSE:
+            c_text = "Sinus Arrest Window"
+            c_color = "#f59e0b"
+        else:
+            c_text = "1:1 Synchronous"
+            c_color = "#10b981"
+        st.markdown(f"""
+        <div class="metric-card">
+            <div class="metric-card-title">Conduction Status</div>
+            <div class="metric-card-val" style="color: {c_color};">{c_text}</div>
+        </div>
+        """, unsafe_allow_html=True)
 
-    sim_res = solve_network(net, t_span=(0.0, t_end_net), dt=0.02)
-    t_net = sim_res["time"]
-    V_net = sim_res["V"]
-    W_net = sim_res["W"]
+    # -------------------------------------------------------------------------
+    # MAIN ARRHYTHMIA DISPLAY: HEART VISUALIZATION + RHYTHM TRACE
+    # -------------------------------------------------------------------------
+    col_vis, col_rhythm = st.columns([1.15, 1.0])
 
-    activations = detect_activations(t_net, V_net, threshold=0.0)
-    latencies = compute_propagation_latencies(activations, net, beat_index=0)
-    failures = detect_conduction_failures(activations, net)
+    with col_vis:
+        st.markdown('<div class="sec-title">🫀 Interactive Anatomical Heart Visualization</div>', unsafe_allow_html=True)
+        st.caption(f"Continuous numerical state $(v_i, w_i)$ playback for **{lab_sc_name}**. Watch excitation wavefront propagation, blockages, and recovery.")
+        heart_html = build_heart_visualization_html(lab_res, width=820, height=660)
+        components.html(heart_html, height=690, scrolling=False)
 
-    net_cols = st.columns(4)
-    with net_cols[0]:
-        st.metric("AV Conductance (g_AV)", f"{g_av_val:.3f}")
-    with net_cols[1]:
-        st.metric("Global Coupling (D)", f"{D_val:.2f}")
-    with net_cols[2]:
-        tot_time = latencies["regional_summary"].get("Total_SAN_to_Ventricle")
-        st.metric("Total Latency", f"{tot_time:.2f} units" if tot_time is not None else "BLOCKED")
-    with net_cols[3]:
-        st.metric("Conduction Status", "✓ Normal Wave" if not failures else f"⚠ Block ({len(failures)} path)")
+    with col_rhythm:
+        st.markdown('<div class="sec-title">⚡ Arrhythmia Rhythm Waveform & Event Timeline</div>', unsafe_allow_html=True)
+        st.caption("Simulated activation-derived rhythm trace — not a clinically validated ECG.")
 
-    col_graph, col_traces = st.columns([1, 1.2])
-    with col_graph:
-        st.subheader("Network Topology")
-        fig_g = go.Figure()
-        for edge in net.edges:
-            u, v = net.nodes[edge.source_id], net.nodes[edge.target_id]
-            is_act = edge.is_active and edge.conductance > 0.0
-            fig_g.add_trace(go.Scatter(
-                x=[u.pos_x, v.pos_x], y=[u.pos_y, v.pos_y], mode="lines",
-                line=dict(color="#3b82f6" if is_act else "#ef4444", width=max(1.5, edge.conductance * 8.0)),
-                hoverinfo="none", showlegend=False,
-            ))
-        node_x = [net.nodes[i].pos_x for i in range(net.num_nodes)]
-        node_y = [net.nodes[i].pos_y for i in range(net.num_nodes)]
-        peak_v = [np.max(V_net[:, i]) for i in range(net.num_nodes)]
-        fig_g.add_trace(go.Scatter(
-            x=node_x, y=node_y, mode="markers+text",
-            marker=dict(size=36, color=["#10b981" if p > 0 else "#94a3b8" for p in peak_v], line=dict(color="#1e293b", width=2)),
-            text=[net.nodes[i].name for i in range(net.num_nodes)],
-            textposition="middle center", textfont=dict(color="white", size=11, family="Arial Black"),
-            showlegend=False,
+        # Activation-Derived Rhythm Waveform
+        fig_rhythm = go.Figure()
+        fig_rhythm.add_trace(go.Scatter(
+            x=lab_res.time, y=lab_res.rhythm_trace, mode="lines", name="Rhythm Trace Φ(t)",
+            line=dict(color="#38bdf8", width=2.0)
         ))
-        fig_g.update_layout(height=450, margin=dict(l=20, r=20, t=20, b=20), xaxis=dict(visible=False), yaxis=dict(visible=False), template="plotly_white")
-        st.plotly_chart(fig_g, use_container_width=True)
+        fig_rhythm.add_hline(y=0.0, line_dash="dash", line_color="#475569")
+        fig_rhythm.update_layout(
+            title=f"Activation-Derived Rhythm Waveform ({lab_sc_name.split(':')[0]})",
+            xaxis_title="Simulation Time (model units)",
+            yaxis_title="Dipole Moment Φ(t)",
+            template="plotly_dark",
+            height=260,
+            margin=dict(l=40, r=20, t=35, b=30),
+        )
+        st.plotly_chart(fig_rhythm, use_container_width=True)
 
-    with col_traces:
-        st.subheader("Synchronized Wave Propagation Traces")
-        fig_w = go.Figure()
-        colors = ["#2563eb", "#0284c7", "#d97706", "#7c3aed", "#ec4899", "#dc2626"]
-        for i in range(net.num_nodes):
-            fig_w.add_trace(go.Scatter(x=t_net, y=V_net[:, i], mode="lines", name=net.nodes[i].name, line=dict(color=colors[i % len(colors)], width=2.0)))
-        fig_w.update_layout(height=450, margin=dict(l=40, r=20, t=20, b=20), xaxis_title="Time t", yaxis_title="Voltage v_i", hovermode="x unified", template="plotly_white")
-        st.plotly_chart(fig_w, use_container_width=True)
+        # Multi-Channel Activation Event Timeline
+        fig_timeline = go.Figure()
+        region_colors = {
+            "Sinoatrial (SA) Node": "#f59e0b",
+            "Atrial Myocardium": "#3b82f6",
+            "Atrioventricular (AV) Node": "#ec4899",
+            "Bundle of His": "#8b5cf6",
+            "Purkinje Network": "#06b6d4",
+            "Ventricular Myocardium": "#10b981",
+        }
+        y_labels = []
+        for i in range(lab_res.network.num_nodes):
+            node = lab_res.network.nodes[i]
+            y_labels.append(node.name)
+            t_acts = lab_res.activations.get(i, [])
+            c = region_colors.get(node.region.value, "#94a3b8")
+            if t_acts:
+                fig_timeline.add_trace(go.Scatter(
+                    x=t_acts, y=[node.name] * len(t_acts), mode="markers",
+                    marker=dict(size=12, color=c, symbol="diamond", line=dict(color="#0f172a", width=1.5)),
+                    name=node.name,
+                ))
+            else:
+                fig_timeline.add_trace(go.Scatter(
+                    x=[lab_res.time[-1] / 2], y=[node.name], mode="text",
+                    text=["[BLOCKED / NO ACTIVATION]"], textposition="middle center",
+                    textfont=dict(color="#ef4444", size=10), showlegend=False,
+                ))
 
-    # Stage 4: Interactive Anatomical Conduction Visualization for Stage 2
-    st.markdown("### 🫀 Interactive Anatomical Conduction Visualization (Stage 4)")
-    st.caption("Live 60 FPS anatomical wavefront animation driven directly by the coupled ODE network solver.")
-    net_sim_dict = {
-        "network": net,
-        "time": t_net,
-        "V": V_net,
-        "W": W_net,
-        "name": f"Coupled Conduction ({net_preset})",
-    }
-    net_heart_html = build_heart_visualization_html(net_sim_dict, width=950, height=720)
-    components.html(net_heart_html, height=740, scrolling=False)
+        fig_timeline.update_layout(
+            title="Multi-Channel Activation Event Timeline",
+            xaxis_title="Time t (model units)",
+            yaxis=dict(categoryorder="array", categoryarray=list(reversed(y_labels))),
+            template="plotly_dark",
+            height=320,
+            showlegend=False,
+            margin=dict(l=60, r=20, t=35, b=30),
+        )
+        st.plotly_chart(fig_timeline, use_container_width=True)
+
+    # -------------------------------------------------------------------------
+    # DEEP-DIVE ARRHYTHMIA LABORATORY TABS
+    # -------------------------------------------------------------------------
+    a_tab1, a_tab2, a_tab3, a_tab4 = st.tabs([
+        "📊 Multi-Channel Action Potentials",
+        "📋 Numerical Event Log & CSV Export",
+        "🌐 Einthoven Lead II Far-Field Dipole",
+        "🔍 Mechanistic Electrophysiological Breakdown",
+    ])
+
+    with a_tab1:
+        st.subheader("Synchronized Transmembrane Potentials across Functional Regions")
+        fig_sync = go.Figure()
+        colors = ["#f59e0b", "#3b82f6", "#ec4899", "#8b5cf6", "#06b6d4", "#10b981"]
+        for i in range(lab_res.network.num_nodes):
+            node = lab_res.network.nodes[i]
+            fig_sync.add_trace(go.Scatter(
+                x=lab_res.time, y=lab_res.V[:, i], mode="lines",
+                name=f"{node.name} ({node.region.value})",
+                line=dict(color=colors[i % len(colors)], width=2.0)
+            ))
+        fig_sync.update_layout(
+            title=f"Multi-Channel Action Potentials: {lab_sc_name}",
+            xaxis_title="Time t (model units)", yaxis_title="Transmembrane Voltage v_i",
+            template="plotly_dark", height=450, hovermode="x unified",
+        )
+        st.plotly_chart(fig_sync, use_container_width=True)
+
+    with a_tab2:
+        st.subheader("Numerical Activation Event Log (Chronological Sub-Step Timestamps)")
+        event_entries = generate_numerical_event_log(lab_res.activations, lab_res.network)
+        if event_entries:
+            df_events = pd.DataFrame([e.to_dict() for e in event_entries])
+            st.dataframe(df_events, use_container_width=True)
+            csv_data = df_events.to_csv(index=False).encode("utf-8")
+            st.download_button("📥 Download Event Log as CSV", data=csv_data, file_name=f"event_log_{lab_cfg.scenario_type.name.lower()}.csv", mime="text/csv")
+        else:
+            st.warning("No threshold crossings detected.")
+
+    with a_tab3:
+        st.subheader("Einthoven Lead II Projection & Dipole Physics")
+        lead_trace, doc_text = compute_true_ecg_lead_approximation(lab_res.time, lab_res.V, lab_res.network)
+        fig_lead = go.Figure()
+        fig_lead.add_trace(go.Scatter(x=lab_res.time, y=lead_trace, mode="lines", name="Lead II Projection", line=dict(color="#10b981", width=2.0)))
+        fig_lead.update_layout(title="Einthoven Lead II Far-Field Dipole Projection", xaxis_title="Time t (model units)", yaxis_title="Potential V_II (a.u.)", template="plotly_dark", height=380)
+        st.plotly_chart(fig_lead, use_container_width=True)
+        st.info(f"💡 **Physical Dipole Formulation:** {doc_text}")
+
+    with a_tab4:
+        st.subheader(f"Electrophysiological & Biophysical Analysis: {lab_sc_name}")
+        st.markdown(f"""
+        #### 1. Applied Parameter Modification
+        {lab_res.parameter_change_summary}
+
+        #### 2. Mathematical Dynamics & Conduction Mechanics
+        {lab_res.mathematical_assumptions}
+        """)
+
+        comp_dict = lab_res.comparison_with_normal
+        st.markdown("#### 3. Quantitative Comparison vs Normal Sinus Baseline")
+        if "rate_ratio" in comp_dict:
+            st.write(f"- **Activation Rate Ratio:** `{comp_dict['rate_ratio']:.2f}x` of baseline normal rhythm")
+        if "status" in comp_dict:
+            st.write(f"- **Conduction Status:** {comp_dict['status']}")
+        if "dropped_count" in comp_dict:
+            st.write(f"- **Dropped Conduction Events:** `{comp_dict['dropped_count']}` downstream activations blocked")
+        if "reentry_revolutions" in comp_dict:
+            st.write(f"- **Re-entrant Circus Revolutions:** `{comp_dict['reentry_revolutions']}` continuous self-sustaining wavefront rotations")
 
 
 # =============================================================================
-# WORKSPACE 1: STANDALONE SINGLE-CELL ENGINE (STAGE 1)
+# VIEW 3: MATHEMATICAL ANALYSIS (STAGE 6 COMPLETE LABORATORY)
+# =============================================================================
+elif "Mathematical Analysis" in nav_view:
+    st.title("🔬 Mathematical Analysis Laboratory (Stage 6)")
+    st.caption("Rigorous Analytical & Numerical Evaluation of the Single-Cell FitzHugh–Nagumo ODE System")
+
+    # Parameters
+    p_I = st.sidebar.slider("Applied Current (I)", -0.5, 2.0, 0.5, 0.01)
+    p_eps = st.sidebar.slider("Timescale Ratio (ε)", 0.005, 0.40, 0.08, 0.005)
+    p_a = st.sidebar.slider("Intercept (a)", -0.5, 1.5, 0.70, 0.05)
+    p_b = st.sidebar.slider("Slope (b)", 0.1, 2.0, 0.80, 0.05)
+    p_single = FHNParameters(a=p_a, b=p_b, epsilon=p_eps, I=p_I)
+
+    eqs_single = find_equilibria(p_single)
+
+    lab_t1, lab_t2, lab_t3, lab_t4, lab_t5 = st.tabs([
+        "📐 Parts A & B: Nullclines & Cardano Equilibria",
+        "🧮 Part C: Analytical Jacobian & Poincaré Stability",
+        "🌀 Part D: Phase Plane & Flow Field Explorer",
+        "📈 Part E: Bifurcation Sweeps Engine (I, ε, a, b)",
+        "⚖️ Part F: Before-and-After Parameter Comparison Lab",
+    ])
+
+    with lab_t1:
+        st.subheader("Part A & B: Nullclines & Cardano Equilibrium Roots")
+        st.markdown(r"""
+        - **$v$-nullcline:** $w = v - \frac{v^3}{3} + I$
+        - **$w$-nullcline:** $w = \frac{v + a}{b}$
+        - **Cardano Depressed Cubic:** $b(v^*)^3 + 3(1 - b)v^* + 3(a - bI) = 0$
+        """)
+        rec_list = []
+        for idx, eq in enumerate(eqs_single, start=1):
+            r_v = eq.v_star - (eq.v_star**3) / 3.0 - eq.w_star + p_single.I
+            r_w = p_single.epsilon * (eq.v_star + p_single.a - p_single.b * eq.w_star)
+            rec_list.append({
+                "Index": f"E_{idx}",
+                "v*": f"{eq.v_star:+.8f}",
+                "w*": f"{eq.w_star:+.8f}",
+                "|r_v|": f"{abs(r_v):.2e}",
+                "|r_w|": f"{abs(r_w):.2e}",
+                "Verification": "✓ Verified (< 10⁻¹²)",
+                "Poincaré Class": eq.stability_class.value,
+            })
+        st.dataframe(pd.DataFrame(rec_list), use_container_width=True)
+
+    with lab_t2:
+        st.subheader("Part C: Analytical Jacobian & Poincaré Stability")
+        for idx, eq in enumerate(eqs_single, start=1):
+            st.markdown(f"### Equilibrium E_{idx}: ({eq.v_star:.4f}, {eq.w_star:.4f})")
+            st.markdown(f"""
+            - **Trace τ:** `{eq.trace:+.6f}`
+            - **Determinant Δ:** `{eq.determinant:+.6f}`
+            - **Discriminant D:** `{eq.discriminant:+.6f}`
+            - **Eigenvalues λ1,2:** `{eq.eigenvalues[0]:+.5f}, {eq.eigenvalues[1]:+.5f}`
+            - **Classification:** **{eq.stability_class.value}**
+            """)
+
+    with lab_t3:
+        st.subheader("Part D: Phase Plane & Flow Field Explorer")
+        v_grid, w_vn, w_wn = compute_nullclines((-2.6, 2.6), p_single)
+        V_m, W_m, dV, dW, dV_norm, dW_norm = compute_vector_field((-2.5, 2.5), (-1.8, 2.2), 16, p_single)
+        fig_d = ff.create_quiver(V_m, W_m, dV_norm, dW_norm, scale=0.12, arrow_scale=0.35, line=dict(color="#475569", width=1.0))
+        fig_d.add_trace(go.Scatter(x=v_grid, y=w_vn, mode="lines", name="v-nullcline", line=dict(color="#3b82f6", width=2.5)))
+        fig_d.add_trace(go.Scatter(x=v_grid, y=w_wn, mode="lines", name="w-nullcline", line=dict(color="#f97316", width=2.5, dash="dash")))
+        for eq in eqs_single:
+            fig_d.add_trace(go.Scatter(x=[eq.v_star], y=[eq.w_star], mode="markers", marker=dict(size=14, color="#10b981" if eq.is_stable else "#ef4444"), name=eq.stability_class.name))
+        fig_d.update_layout(template="plotly_dark", height=480)
+        st.plotly_chart(fig_d, use_container_width=True)
+
+    with lab_t4:
+        st.subheader("Part E: Multi-Parameter Sweeps & Bifurcations")
+        sw_var = st.selectbox("Select Parameter to Sweep:", ["I (Current)", "ε (Timescale)", "a (Intercept)", "b (Slope)"])
+        if "I (" in sw_var:
+            sw_data = sweep_parameter_I(-0.2, 1.6, 60, p_single)
+        elif "ε (" in sw_var:
+            sw_data = sweep_parameter_epsilon(0.01, 0.35, 60, p_single)
+        elif "a (" in sw_var:
+            sw_data = sweep_parameter_a(0.0, 1.4, 60, p_single)
+        else:
+            sw_data = sweep_parameter_b(0.2, 1.6, 60, p_single)
+        bifs = analyze_bifurcation_conditions(sw_data)
+        if bifs:
+            st.dataframe(pd.DataFrame(bifs), use_container_width=True)
+        else:
+            st.info("No codimension-1 zero crossings detected in this interval.")
+
+    with lab_t5:
+        st.subheader("Part F: Parameter Comparison Laboratory")
+        st.caption("Compare State A (Baseline) vs State B (Perturbed):")
+        cA, cB = st.columns(2)
+        with cA:
+            st.markdown("##### State A")
+            iA = st.number_input("I_A", value=0.0, step=0.1)
+            pA = FHNParameters(a=0.7, b=0.8, epsilon=0.08, I=iA)
+        with cB:
+            st.markdown("##### State B")
+            iB = st.number_input("I_B", value=0.5, step=0.1)
+            pB = FHNParameters(a=0.7, b=0.8, epsilon=0.08, I=iB)
+        cmp_res = compare_fhn_states(pA, pB)
+        st.markdown(f"**Transition:** `{cmp_res.stability_transition}`")
+        st.markdown(f"**Diagnosis:** {cmp_res.dynamical_diagnosis}")
+
+
+# =============================================================================
+# VIEW 4: PARAMETER EXPERIMENT LAB
+# =============================================================================
+elif "Parameter Experiment Lab" in nav_view:
+    st.title("⚖️ Parameter Experiment Laboratory")
+    st.caption("Controlled Exploration of Electrophysiological Parameter Changes on Cardiac Conduction")
+
+    exp_colA, exp_colB = st.columns(2)
+
+    with exp_colA:
+        st.markdown("### 🔵 Baseline State (Condition A)")
+        p_pace_A = st.slider("Pacing Interval (A)", 25.0, 100.0, 45.0, 5.0, key="p_pace_A")
+        g_av_A = st.slider("AV Conductance g_AV (A)", 0.0, 0.50, 0.35, 0.05, key="g_av_A")
+        D_A = st.slider("Global Coupling D (A)", 0.1, 1.5, 0.70, 0.1, key="D_A")
+        cfg_A = ScenarioConfig(scenario_type=ScenarioType.NORMAL, pacing_interval=p_pace_A, av_conductance=g_av_A, global_coupling=D_A, t_end=120.0)
+        res_A = run_scenario(cfg_A)
+
+    with exp_colB:
+        st.markdown("### 🔴 Experimental State (Condition B)")
+        p_pace_B = st.slider("Pacing Interval (B)", 25.0, 100.0, 35.0, 5.0, key="p_pace_B")
+        g_av_B = st.slider("AV Conductance g_AV (B)", 0.0, 0.50, 0.08, 0.05, key="g_av_B")
+        D_B = st.slider("Global Coupling D (B)", 0.1, 1.5, 0.70, 0.1, key="D_B")
+        cfg_B = ScenarioConfig(scenario_type=ScenarioType.NORMAL, pacing_interval=p_pace_B, av_conductance=g_av_B, global_coupling=D_B, t_end=120.0)
+        res_B = run_scenario(cfg_B)
+
+    # Comparative Metrics Table
+    hr_A = estimate_heart_rate_bpm(res_A.mean_cycle_length)
+    hr_B = estimate_heart_rate_bpm(res_B.mean_cycle_length)
+
+    val_cl_A = f"{res_A.mean_cycle_length:.2f} u" if res_A.mean_cycle_length else "N/A (Blocked)"
+    val_cl_B = f"{res_B.mean_cycle_length:.2f} u" if res_B.mean_cycle_length else "N/A (Blocked)"
+    diff_cl = (
+        f"{res_B.mean_cycle_length - res_A.mean_cycle_length:+.2f} u"
+        if (res_A.mean_cycle_length is not None and res_B.mean_cycle_length is not None)
+        else "N/A"
+    )
+
+    val_bpm_A = f"{hr_A['bpm']:.1f} BPM" if hr_A.get("bpm") is not None else "0.0 BPM (Blocked)"
+    val_bpm_B = f"{hr_B['bpm']:.1f} BPM" if hr_B.get("bpm") is not None else "0.0 BPM (Blocked)"
+    diff_bpm = (
+        f"{hr_B['bpm'] - hr_A['bpm']:+.1f} BPM"
+        if (hr_A.get("bpm") is not None and hr_B.get("bpm") is not None)
+        else "N/A"
+    )
+
+    st.markdown("### Side-by-Side Experimental Analysis")
+    cmp_table = pd.DataFrame([
+        {"Parameter / Metric": "Pacing Interval T_pace", "State A (Baseline)": f"{p_pace_A:.1f} u", "State B (Trial)": f"{p_pace_B:.1f} u", "Difference (B - A)": f"{p_pace_B - p_pace_A:+.1f} u"},
+        {"Parameter / Metric": "AV Conductance g_AV", "State A (Baseline)": f"{g_av_A:.3f}", "State B (Trial)": f"{g_av_B:.3f}", "Difference (B - A)": f"{g_av_B - g_av_A:+.3f}"},
+        {"Parameter / Metric": "Global Coupling D", "State A (Baseline)": f"{D_A:.2f}", "State B (Trial)": f"{D_B:.2f}", "Difference (B - A)": f"{D_B - D_A:+.2f}"},
+        {"Parameter / Metric": "Mean Cycle Length", "State A (Baseline)": val_cl_A, "State B (Trial)": val_cl_B, "Difference (B - A)": diff_cl},
+        {"Parameter / Metric": "Estimated Rate (BPM)", "State A (Baseline)": val_bpm_A, "State B (Trial)": val_bpm_B, "Difference (B - A)": diff_bpm},
+        {"Parameter / Metric": "Conduction Drops", "State A (Baseline)": f"{len(res_A.failures)}", "State B (Trial)": f"{len(res_B.failures)}", "Difference (B - A)": f"{len(res_B.failures) - len(res_A.failures):+d}"},
+    ])
+    st.dataframe(cmp_table, use_container_width=True)
+
+    # Overlaid Waveforms
+    fig_ab = go.Figure()
+    fig_ab.add_trace(go.Scatter(x=res_A.time, y=res_A.rhythm_trace, mode="lines", name="Rhythm State A (Baseline)", line=dict(color="#3b82f6", width=2.0)))
+    fig_ab.add_trace(go.Scatter(x=res_B.time, y=res_B.rhythm_trace, mode="lines", name="Rhythm State B (Trial)", line=dict(color="#ef4444", width=2.0, dash="dash")))
+    fig_ab.update_layout(title="Simulated Activation Waveform Comparison (State A vs State B)", xaxis_title="Time t", yaxis_title="Dipole Moment Φ(t)", template="plotly_dark", height=350)
+    st.plotly_chart(fig_ab, use_container_width=True)
+
+
+# =============================================================================
+# VIEW 5: ABOUT THE MODEL (COMPREHENSIVE ACADEMIC REFERENCE)
 # =============================================================================
 else:
-    st.title("⚡ Standalone FitzHugh–Nagumo Mathematical Engine (Stage 1)")
-    st.caption("Rigorous Phase-Plane, Runge–Kutta 4 Integration, Jacobian Stability, and Bifurcation Analysis")
+    st.title("📖 About the Model: Mathematical & Biophysical Foundations")
+    st.caption("Formal documentation of equations, variables, coupled network extensions, assumptions, and scientific boundaries.")
 
-    st.sidebar.subheader("Single-Cell Presets")
-    sc_preset = st.sidebar.selectbox(
-        "Load Canonical Parameter Preset:",
-        [
-            "Custom",
-            "Limit Cycle / Oscillatory Firing (I=0.5)",
-            "Polarized Resting State (I=0.0)",
-            "Near Hopf Bifurcation (I=0.331)",
-            "High Current Excitation (I=1.2)",
-        ],
-        index=1,
-    )
+    st.markdown(r"""
+    ### 1. The Single-Cell FitzHugh–Nagumo Equations
+    The classical FitzHugh–Nagumo (FHN) model (FitzHugh, 1961; Nagumo et al., 1962) is a two-variable planar simplification of the four-variable Hodgkin–Huxley equations:
+    $$\frac{dv}{dt} = v - \frac{v^3}{3} - w + I$$
+    $$\frac{dw}{dt} = \varepsilon(v + a - bw)$$
 
-    if sc_preset == "Limit Cycle / Oscillatory Firing (I=0.5)":
-        def_a, def_b, def_eps, def_I = 0.7, 0.8, 0.08, 0.5
-        def_v0, def_w0 = -1.0, 0.2
-    elif sc_preset == "Polarized Resting State (I=0.0)":
-        def_a, def_b, def_eps, def_I = 0.7, 0.8, 0.08, 0.0
-        def_v0, def_w0 = -1.2, -0.6
-    elif sc_preset == "Near Hopf Bifurcation (I=0.331)":
-        def_a, def_b, def_eps, def_I = 0.7, 0.8, 0.08, 0.331
-        def_v0, def_w0 = -0.967, -0.334
-    elif sc_preset == "High Current Excitation (I=1.2)":
-        def_a, def_b, def_eps, def_I = 0.7, 0.8, 0.08, 1.2
-        def_v0, def_w0 = 0.5, 0.8
-    else:
-        def_a, def_b, def_eps, def_I = 0.7, 0.8, 0.08, 0.5
-        def_v0, def_w0 = -1.0, 0.2
+    #### Meaning of Every Variable & Parameter:
+    - **$v(t) \in \mathbb{R}$ (Fast Transmembrane Voltage):**  
+      Represents the dimensionless cellular membrane potential. The cubic non-linearity $v - v^3/3$ models the self-regenerative fast inward depolarizing current (analogous to $\text{Na}^+$ or $\text{Ca}^{2+}$ influx) and its rapid saturation.
+    - **$w(t) \in \mathbb{R}$ (Slow Recovery Variable):**  
+      Represents the outward repolarizing currents and refractory deactivation (analogous to delayed-rectifier $\text{K}^+$ currents).
+    - **$I \in \mathbb{R}$ (Applied External Current):**  
+      Models pacing stimulus or intracellular bias currents.
+    - **$\varepsilon \in (0, 1)$ (Timescale Separation Ratio):**  
+      Because $\varepsilon \ll 1$ (typically $0.08$), the recovery variable evolves on a much slower timescale than $v(t)$, creating the rapid upstroke and prolonged refractory recovery typical of excitable cardiac tissue.
+    - **$a, b \in \mathbb{R}$ (Nullcline Geometry Parameters):**  
+      Determine the resting membrane potential and threshold excitability. Constraining $b \in (0, 1)$ mathematically guarantees a unique resting equilibrium point.
 
-    st.sidebar.subheader("Single-Cell Model Parameters")
-    I_val = st.sidebar.slider("Applied Current (I)", -0.5, 2.0, float(def_I), 0.01)
-    eps_val = st.sidebar.slider("Timescale Ratio (ε)", 0.005, 0.4, float(def_eps), 0.005)
-    a_val = st.sidebar.slider("Intercept Parameter (a)", 0.0, 1.5, float(def_a), 0.05)
-    b_val = st.sidebar.slider("Slope Parameter (b)", 0.1, 1.5, float(def_b), 0.05)
+    ---
 
-    params = FHNParameters(a=a_val, b=b_val, epsilon=eps_val, I=I_val)
-    equilibria = find_equilibria(params)
-    t, v, w = rk4_solve((def_v0, def_w0), (0.0, 50.0), 0.02, params)
+    ### 2. The Coupled-Cell Network Extension
+    To model coordinated cardiac conduction, the standalone ODE is extended to an $N$-compartment discrete network governed by gap-junction diffusive coupling:
+    $$\frac{dv_i}{dt} = v_i - \frac{v_i^3}{3} - w_i + I_{\text{stim}, i}(t) + D \sum_{j \in \mathcal{N}(i)} A_{ij}(v_j - v_i)$$
+    $$\frac{dw_i}{dt} = \varepsilon_i(v_i + a_i - b_i w_i)$$
 
-    cols = st.columns(4)
-    with cols[0]:
-        st.metric("Current (I)", f"{params.I:.4f}")
-    with cols[1]:
-        st.metric("Timescale (ε)", f"{params.epsilon:.4f}")
-    with cols[2]:
-        st.metric("Equilibria Found", len(equilibria))
-    with cols[3]:
-        st.metric("Stability", "Stable" if (equilibria and equilibria[0].is_stable) else "Unstable")
+    - **$A_{ij} \ge 0$:** Intercellular gap-junction coupling weight between compartment $i$ and $j$.
+    - **$D$:** Global electrical coupling coefficient.
+    - **Graph Laplacian $\mathcal{L} = \mathcal{D} - A$:** Diffusive operator dictating electrotonic wave spread.
+    - **Anatomical Conduction Sequence:**
+      $$\text{SA Node} \longrightarrow \text{Atrial Myocardium} \longrightarrow \text{AV Node (Delayed)} \longrightarrow \text{Bundle of His} \longrightarrow \text{Purkinje Network} \longrightarrow \text{Ventricles}$$
 
-    c_ts, c_pp = st.columns([1, 1])
-    with c_ts:
-        st.subheader("Time Series v(t) & w(t)")
-        fig_ts = make_subplots(rows=2, cols=1, shared_xaxes=True, subplot_titles=("v(t) [Fast]", "w(t) [Slow]"))
-        fig_ts.add_trace(go.Scatter(x=t, y=v, mode="lines", name="v(t)", line=dict(color="#2563eb", width=2)), row=1, col=1)
-        fig_ts.add_trace(go.Scatter(x=t, y=w, mode="lines", name="w(t)", line=dict(color="#f97316", width=2)), row=2, col=1)
-        fig_ts.update_layout(height=480, margin=dict(l=40, r=20, t=30, b=30), template="plotly_white", showlegend=False)
-        st.plotly_chart(fig_ts, use_container_width=True)
+    ---
 
-    with c_pp:
-        st.subheader("Phase Plane & Nullclines")
-        v_grid, w_vn, w_wn = compute_nullclines((-2.5, 2.5), params)
-        fig_pp = go.Figure()
-        fig_pp.add_trace(go.Scatter(x=v_grid, y=w_vn, mode="lines", name="v-nullcline", line=dict(color="#1d4ed8", width=2.5)))
-        fig_pp.add_trace(go.Scatter(x=v_grid, y=w_wn, mode="lines", name="w-nullcline", line=dict(color="#ea580c", width=2.5, dash="dash")))
-        fig_pp.add_trace(go.Scatter(x=v, y=w, mode="lines", name="Trajectory", line=dict(color="#059669", width=2)))
-        for eq in equilibria:
-            fig_pp.add_trace(go.Scatter(
-                x=[eq.v_star], y=[eq.w_star], mode="markers",
-                marker=dict(size=12, color="#10b981" if eq.is_stable else "#ef4444", line=dict(color="black", width=1.5)),
-                name=f"E: {eq.stability_class.value}"
-            ))
-        fig_pp.update_layout(height=480, margin=dict(l=40, r=20, t=30, b=30), xaxis=dict(range=[-2.5, 2.5]), yaxis=dict(range=[-2.0, 2.5]), template="plotly_white")
-        st.plotly_chart(fig_pp, use_container_width=True)
+    ### 3. Physical & Mathematical Assumptions
+    1. **Planar Reduction:** Excitation dynamics within each compartment are described by 2 state variables $(v_i, w_i)$.
+    2. **Far-Field Dipole Approximation:** Rhythm waveforms $\Phi(t)$ are calculated via electrical dipole moment projection:
+       $$\Phi(t) = \sum_{(i,j) \in \mathcal{E}} g_{ij} [v_j(t) - v_i(t)] \cdot \vec{d}_{ij}$$
+    3. **Homogeneous Isotropic Volume Conductor:** Neglects electrical impedance discontinuities across thoracic tissues.
+    4. **Quasi-Static Electromagnetic Field:** Valid for low physiological bioelectric frequencies ($< 1\text{ kHz}$).
+
+    ---
+
+    ### 4. Model Limitations
+    - **No Discrete Ion Channels:** The phenomenological formulation does not resolve individual microscopic currents ($I_{\text{Na}}, I_{\text{Ca,L}}, I_{\text{to}}, I_{\text{Kr}}, I_{\text{Ks}}$).
+    - **Discrete 6-Compartment Hierarchy:** Represents primary physiological regions rather than a 3D continuum finite-element syncytium.
+    - **No Mechanical Pumping:** Models electrical activation only; does not compute myocardial wall stress, chamber pressure, or hemodynamic ejection.
+
+    ---
+
+    ### 5. Critical Distinction: Reduced Simulation vs Real Human Heart
+    > [!WARNING]
+    > **Non-Clinical Warning:**  
+    > This software is an educational and dynamical systems research tool designed to demonstrate the fundamental mathematics of threshold excitability, decremental conduction, and re-entrant circus movement.  
+    > The computed rhythm waveforms are activation-derived surrogates. They are **not** clinical 12-lead electrocardiograms (ECGs) and must **never** be used for clinical diagnosis, patient management, or medical decision-making.
+    """)

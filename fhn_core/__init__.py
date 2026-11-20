@@ -57,6 +57,13 @@ from .rhythm_analysis import (
     compute_true_ecg_lead_approximation,
     compare_with_normal_rhythm,
 )
+from .laboratory import (
+    StateComparisonResult,
+    sweep_parameter_a,
+    sweep_parameter_b,
+    analyze_bifurcation_conditions,
+    compare_fhn_states,
+)
 
 __all__ = [
     # Stage 1: Single-cell
@@ -106,4 +113,10 @@ __all__ = [
     "detect_missing_events",
     "compute_true_ecg_lead_approximation",
     "compare_with_normal_rhythm",
+    # Stage 6: Mathematical Analysis Laboratory
+    "StateComparisonResult",
+    "sweep_parameter_a",
+    "sweep_parameter_b",
+    "analyze_bifurcation_conditions",
+    "compare_fhn_states",
 ]

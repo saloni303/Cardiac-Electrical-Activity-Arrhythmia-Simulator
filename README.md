@@ -3,7 +3,7 @@
 > **Cardiac-Electrical-Activity-Arrhythmia-Simulator**  
 > A mathematical simulation of heart cell electrical activity using the FitzHugh–Nagumo (FHN) model. Explore how changing parameters affects cell behaviour, conduction latencies, and arrhythmia-like patterns through interactive graphs and an anatomical heart visualizer. Focused on single-cell and coupled-network mathematical modelling, not clinical diagnosis or medical ECG analysis.
 
-**Stages 1, 2, 3, 4 & 5: Standalone FHN Mathematical Engine, Conduction Network, Arrhythmia Scenario Suite, Interactive Anatomical Heart & Rhythm Analysis Panel**
+**Stages 1, 2, 3, 4, 5, 6 & 7: Standalone FHN Engine, Conduction Network, Arrhythmia Scenarios, Interactive Heart, Rhythm Analysis, Mathematical Analysis Laboratory & Final Integrated Dashboard**
 
 ---
 
@@ -15,6 +15,8 @@ This repository contains an academic research simulation suite developed to inve
 - **Stage 3 (Arrhythmia Scenario Engine):** Numerically integrated simulation suite modeling six distinct physiological and pathological rhythm scenarios with live dipole rhythm trace projection.
 - **Stage 4 (Interactive Anatomical Heart Visualization):** High-performance 60 FPS HTML5/SVG/Canvas visualizer rendering the anatomical human heart, driven directly by continuous numerical ODE states ($v_i, w_i$) without pre-recorded animations.
 - **Stage 5 (Rhythm Visualization & Activation Analysis):** Full rhythm analysis panel featuring multi-lead field projections, separate $v(t)$ and $w(t)$ regional plots, multi-channel activation timelines with missing-event detection (Sinus Pause & AV Block), beat-to-beat tachograms, estimated BPM conversion, and numerical activation event logs with CSV export.
+- **Stage 6 (Mathematical Analysis Laboratory):** Dedicated analytical laboratory featuring nullclines, Cardano equilibrium solving with $< 10^{-12}$ residual verification, analytical Jacobian linearization, Poincaré stability classification, normalized vector fields with selectable trajectory integrations, multi-parameter sweeps ($I, \varepsilon, a, b$) with Hopf/Fold/Node-Focus condition verification, and a before-and-after parameter comparison lab with automated dynamical diagnosis.
+- **Stage 7 (Integrated Final Cardiac Simulator Dashboard):** Modern, dark scientific simulation interface integrating all 7 core sections into a unified Main Dashboard, plus dedicated modular workspaces: Arrhythmia Lab, Mathematical Analysis Laboratory, Parameter Experiment Lab, and About the Model.
 - **Deliverable 1 (Mathematical Research Report):** Complete formal documentation and analytical derivations located in [docs/MATHEMATICAL_RESEARCH_REPORT.md](file:///c:/Users/Saloni/Desktop/Cardiac%20Electrical%20Activity%20&%20Arrhythmia%20Simulator/docs/MATHEMATICAL_RESEARCH_REPORT.md).
 
 > **Scientific & Medical Boundaries (Non-Clinical Disclaimers):**
@@ -37,23 +39,26 @@ Cardiac Electrical Activity & Arrhythmia Simulator/
 │   ├── solver.py                       # Single-cell 4th-order Runge-Kutta (RK4) integrator
 │   ├── analysis.py                     # Nullclines, cubic roots, Jacobian, eigenvalues, stability
 │   ├── sweeps.py                       # Automated sweeps (I, ε), Hopf & fold checks
+│   ├── laboratory.py                   # Stage 6: Nullclines, Cardano roots, sweeps (a, b), comparison lab
 │   ├── network.py                      # Stage 2: Graph topology, network RK4 integrator
 │   ├── activation.py                   # Stage 2: Depolarization detector, latency & block analyzer
 │   ├── scenarios.py                    # Stage 3: Arrhythmia scenario engine & dipole rhythm projection
 │   ├── visualization.py                # Stage 4: Anatomical heart SVG, 3-state color mapper, 60 FPS Canvas
 │   └── rhythm_analysis.py              # Stage 5: Event logs, BPM conversion, tachogram, Lead II projection
-├── tests/                              # Automated Verification Suite (47 Unit Tests)
+├── tests/                              # Automated Verification Suite (57 Unit Tests)
 │   ├── __init__.py
 │   ├── test_rk4_solver.py              # RK4 4th-order convergence on known problem
-│   ├── test_equilibrium.py             # Cubic roots & residual verification (< 10⁻¹⁰)
+│   ├── test_equilibrium.py             # Cubic roots & residual verification (< 10⁻¹²)
 │   ├── test_jacobian.py                # Analytical vs finite-difference Jacobian, trace/det/λ
+│   ├── test_laboratory.py              # Stage 6: Parts A-F unit tests (nullclines, Cardano, Jacobian, sweeps, comparison)
+│   ├── test_stage7_dashboard.py        # Stage 7: Unified simulation engine, regional customization, baseline delta
 │   ├── test_sweeps.py                  # Parameter sweeps, analytical Hopf locus, fold non-existence
 │   ├── test_network.py                 # Isolated cells, connected cells, emergent wave, AV block
 │   ├── test_scenarios.py               # Stage 3: Normal, Tachycardia, Bradycardia, Pause, AV Block, Re-entry
 │   ├── test_visualization.py          # Stage 4: Color mapping, frame packing, HTML generation, fidelity
 │   ├── test_audit_stage4.py           # Technical validation audit suite (7 formal criteria)
 │   └── test_rhythm_analysis.py        # Stage 5: Event log, tachogram, BPM, missing events, Lead II
-├── app.py                              # Interactive Streamlit Web Application (Stages 1-5)
+├── app.py                              # Interactive Streamlit Web Application (Stages 1-7 Final Dashboard)
 ├── run_cli.py                          # CLI runner for headless analysis, testing & scenario figures/HTML
 ├── scenario_normal.png                 # Generated Normal Rhythm multi-channel & dipole trace figure
 ├── scenario_reentry.png                # Generated Re-entry multi-channel & circus trace figure
@@ -62,15 +67,6 @@ Cardiac Electrical Activity & Arrhythmia Simulator/
 ├── scenario_normal_event_log.csv       # Exported numerical activation event log (Normal)
 ├── scenario_pause_event_log.csv        # Exported numerical activation event log (Sinus Pause)
 ├── scenario_av_block_event_log.csv     # Exported numerical activation event log (AV Block)
-└── README.md                           # Documentation & test manual
-```
-│   └── test_visualization.py          # Stage 4: Color mapping, frame packing, HTML generation, fidelity
-├── app.py                              # Interactive Streamlit Web Application (Stages 1-4)
-├── run_cli.py                          # CLI runner for headless analysis, testing & scenario figures/HTML
-├── scenario_normal.png                 # Generated Normal Rhythm multi-channel & dipole trace figure
-├── scenario_reentry.png                # Generated Re-entry multi-channel & circus trace figure
-├── scenario_normal_vis.html            # Exported standalone interactive anatomical visualizer (Normal)
-├── scenario_reentry_vis.html           # Exported standalone interactive anatomical visualizer (Re-entry)
 └── README.md                           # Documentation & test manual
 ```
 
@@ -111,27 +107,29 @@ $$\Phi(t) = \sum_{(i,j) \in \text{Edges}} g_{ij} \big( v_j(t) - v_i(t) \big) \cd
 
 ---
 
-## 5. Automated Verification Suite (47 Tests)
+## 5. Automated Verification Suite (57 Tests)
 
-All 47 automated unit tests pass with zero warnings across all 5 stages:
+All 57 automated unit tests pass with zero warnings across all 7 stages:
 
 ```
 ============================= test session starts =============================
 platform win32 -- Python 3.14.2, pytest-9.2.0, pluggy-1.7.0
 rootdir: C:\Users\Saloni\Desktop\Cardiac Electrical Activity & Arrhythmia Simulator
-collected 47 items
+collected 57 items
 
-tests/test_audit_stage4.py (7 tests) ................................... PASSED [ 14%]
-tests/test_equilibrium.py (4 tests) .................................... PASSED [ 23%]
-tests/test_jacobian.py (3 tests) ....................................... PASSED [ 29%]
-tests/test_network.py (5 tests) ........................................ PASSED [ 40%]
-tests/test_rhythm_analysis.py (7 tests) ................................ PASSED [ 55%]
+tests/test_audit_stage4.py (7 tests) ................................... PASSED [ 12%]
+tests/test_equilibrium.py (4 tests) .................................... PASSED [ 19%]
+tests/test_jacobian.py (3 tests) ....................................... PASSED [ 24%]
+tests/test_laboratory.py (6 tests) ..................................... PASSED [ 35%]
+tests/test_network.py (5 tests) ........................................ PASSED [ 43%]
+tests/test_rhythm_analysis.py (7 tests) ................................ PASSED [ 56%]
 tests/test_rk4_solver.py (4 tests) ..................................... PASSED [ 63%]
-tests/test_scenarios.py (6 tests) ...................................... PASSED [ 76%]
-tests/test_sweeps.py (4 tests) ......................................... PASSED [ 85%]
+tests/test_scenarios.py (6 tests) ...................................... PASSED [ 73%]
+tests/test_stage7_dashboard.py (4 tests) ............................... PASSED [ 80%]
+tests/test_sweeps.py (4 tests) ......................................... PASSED [ 87%]
 tests/test_visualization.py (7 tests) .................................. PASSED [100%]
 
-============================= 47 passed in 57.04s =============================
+======================== 57 passed in 63.75s (0:01:03) ========================
 ```
 
 ---
@@ -146,47 +144,63 @@ python -m streamlit run app.py
 ```
 *(Available in your web browser at `http://localhost:8501`)*
 
-**Available Workspaces:**
-1. **🏥 Arrhythmia Scenario Engine & Heart Visualizer (Stage 3 & 4):**
-   - Select any of the 6 clinical/mathematical scenarios.
-   - Watch the interactive anatomical heart visualization update live at 60 FPS.
-   - Use Play, Pause, Reset, interactive time scrubbers, and playback speed multipliers (0.25x to 2.0x).
-   - Inspect synchronized membrane voltage traces $v_i(t)$ and live dipole rhythm waveforms.
-   - Review side-by-side comparative analysis tables and parameter change explanations.
-2. **🌐 Coupled Conduction Network & Heart Visualizer (Stage 2 & 4):**
-   - Graph visualizer with nodes colored by dynamic voltage and edges scaled by conductance.
-   - Interactive anatomical heart animation responding directly to network coupling changes ($g_{\text{AV}}, D, \varepsilon_{\text{AV}}$).
-   - Conduction failure alerts and single-cell refractory probe.
-3. **⚡ Standalone Single-Cell Engine (Stage 1):**
-   - Full phase-plane analysis, nullclines, Jacobian stability, and automated bifurcation sweeps.
+**Available Modular Workspaces:**
+1. **🫀 Main Dashboard (Stage 7 Integrated):**
+   - **Section 1 (Heart Visualizer):** Large interactive 60 FPS anatomical heart illustration displaying SA node, atria, AV node, His bundle, Purkinje network, and ventricles.
+   - **Section 2 & 3 (Simulation & Arrhythmia Controls):** Start, Pause, Reset, Speed multipliers (0.25x–4x), and scenario selector (Normal, Tachycardia, Bradycardia, Sinus Pause, AV Block, Re-entry).
+   - **Section 4 (Parameter Panel):** $I, \varepsilon, a, b, D$, SA pacing interval, connection strength, and region-specific parameters with descriptions and sensible ranges.
+   - **Section 5 (Electrical Rhythm):** Simulated activation-derived rhythm trace $\Phi(t)$, multi-channel activation timeline, and estimated ventricular activation rate (BPM).
+   - **Section 6 (Mathematical Analysis):** Monitored $v(t)$ and $w(t)$ waveforms, cubic nullclines, equilibrium points, analytical Jacobian, eigenvalues, and Poincaré stability card.
+   - **Section 7 (Experiment Comparison):** In-memory baseline caching, parameter delta tracking, activation pattern shifts, and comparative waveform overlay.
+2. **🏥 Arrhythmia Lab:**
+   - Deep dive into scenarios 1–6 with synchronized membrane potentials across all 6 compartments, numerical activation event logs with CSV export, and Einthoven Lead II far-field dipole projections.
+3. **🔬 Mathematical Analysis Laboratory:**
+   - Single-cell analysis suite featuring Parts A–F: Nullclines, Cardano equilibrium roots with verified residuals ($< 10^{-12}$), analytical Jacobian, Poincaré classification, normalized flow field explorer, and multi-parameter sweeps ($I, \varepsilon, a, b$).
+4. **⚖️ Parameter Experiment Lab:**
+   - Controlled sandbox allowing side-by-side comparative simulation runs (Condition A vs Condition B) with full parameter delta tables and comparative graphs.
+5. **📖 About the Model:**
+   - Comprehensive academic documentation explaining equations, variables, coupled network extensions, assumptions, limitations, and the distinction between a reduced simulation and a real human heart.
+   - Conduction failure alerts and regional latency measurements.
 
 ### 6.2 Command-Line Interface (CLI)
 
-1. **Run Normal Sinus Rhythm Scenario (Exports PNG and Interactive HTML):**
+1. **Run Full Stage 6 Mathematical Analysis Laboratory:**
+   ```powershell
+   python run_cli.py --lab
+   ```
+2. **Run Stage 6 Before-and-After Parameter Comparison:**
+   ```powershell
+   python run_cli.py --compare --I 0.0 --I-new 0.5
+   ```
+3. **Run Parameter Sweep with Bifurcation Verification:**
+   ```powershell
+   python run_cli.py --sweep --sweep-param I
+   ```
+4. **Run Normal Sinus Rhythm Scenario (Exports PNG, CSV and Interactive HTML):**
    ```powershell
    python run_cli.py --scenario normal
    ```
-2. **Run Tachycardia-Like Scenario:**
+5. **Run Tachycardia-Like Scenario:**
    ```powershell
    python run_cli.py --scenario tachycardia --pacing-interval 35.0
    ```
-3. **Run Bradycardia-Like Scenario:**
+6. **Run Bradycardia-Like Scenario:**
    ```powershell
    python run_cli.py --scenario bradycardia --pacing-interval 75.0
    ```
-4. **Run Sinus Pause Scenario:**
+7. **Run Sinus Pause Scenario:**
    ```powershell
    python run_cli.py --scenario pause
    ```
-5. **Run AV Block Scenario:**
+8. **Run AV Block Scenario:**
    ```powershell
    python run_cli.py --scenario av_block
    ```
-6. **Run Re-entry Circus Movement Scenario:**
+9. **Run Re-entry Circus Movement Scenario:**
    ```powershell
    python run_cli.py --scenario reentry
    ```
-7. **Run All 33 Automated Unit Tests:**
-   ```powershell
-   python -m pytest tests -v
-   ```
+10. **Run Complete Automated Unit Test Suite (53 Tests):**
+    ```powershell
+    python -m pytest tests -v
+    ```

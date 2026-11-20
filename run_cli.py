@@ -22,6 +22,12 @@ from fhn_core.model import FHNParameters, compute_vector_field
 from fhn_core.solver import rk4_solve
 from fhn_core.analysis import find_equilibria, compute_nullclines
 from fhn_core.sweeps import sweep_parameter_I, sweep_parameter_epsilon, find_hopf_candidates, check_fold_existence
+from fhn_core.laboratory import (
+    sweep_parameter_a,
+    sweep_parameter_b,
+    analyze_bifurcation_conditions,
+    compare_fhn_states,
+)
 from fhn_core.network import create_default_cardiac_network, solve_network
 from fhn_core.activation import detect_activations, compute_propagation_latencies, detect_conduction_failures
 from fhn_core.scenarios import ScenarioType, ScenarioConfig, run_scenario
@@ -74,7 +80,86 @@ def run_solve(params: FHNParameters, v0: float, w0: float, tend: float, dt: floa
     print(f"  Recovery Range: w_min = {np.min(w):+.4f},  w_max = {np.max(w):+.4f}")
 
 
-def run_sweep(params: FHNParameters):
+def run_lab(params: FHNParameters):
+    print("\n" + "=" * 80)
+    print("   STAGE 6: MATHEMATICAL ANALYSIS LABORATORY (PARTS A - E)")
+    print("=" * 80)
+    print(f"Base Parameters: a = {params.a:.4f}, b = {params.b:.4f}, ε = {params.epsilon:.4f}, I = {params.I:.4f}")
+
+    print("\n[PART A: NULLCLINES]")
+    print(f"  v-nullcline: w = v - v³/3 + I  (I = {params.I:.4f})")
+    print(f"  w-nullcline: w = (v + a)/b     (a = {params.a:.4f}, b = {params.b:.4f})")
+
+    equilibria = find_equilibria(params)
+    print(f"\n[PART B: EQUILIBRIUM POINTS & RESIDUAL VERIFICATION ({len(equilibria)} found)]")
+    for idx, eq in enumerate(equilibria, start=1):
+        r_v = eq.v_star - (eq.v_star**3) / 3.0 - eq.w_star + params.I
+        r_w = params.epsilon * (eq.v_star + params.a - params.b * eq.w_star)
+        v_status = "PASSED (< 10^-12)" if abs(r_v) < 1e-12 and abs(r_w) < 1e-12 else "FAILED"
+        print(f"  Equilibrium E_{idx}:")
+        print(f"    Coordinates:     v* = {eq.v_star:+.8f},  w* = {eq.w_star:+.8f}")
+        print(f"    Residual dv/dt:  |r_v| = {abs(r_v):.2e}")
+        print(f"    Residual dw/dt:  |r_w| = {abs(r_w):.2e}")
+        print(f"    Residual Check:  {v_status}")
+
+    print("\n[PART C: ANALYTICAL JACOBIAN & POINCARÉ STABILITY]")
+    for idx, eq in enumerate(equilibria, start=1):
+        print(f"  Equilibrium E_{idx}:")
+        print(f"    Jacobian J*:     [[{eq.jacobian[0, 0]:+.6f}, {eq.jacobian[0, 1]:+.6f}],")
+        print(f"                      [{eq.jacobian[1, 0]:+.6f}, {eq.jacobian[1, 1]:+.6f}]]")
+        print(f"    Trace τ:         {eq.trace:+.6f}")
+        print(f"    Determinant Δ:   {eq.determinant:+.6f}")
+        print(f"    Discriminant D:  {eq.discriminant:+.6f}")
+        print(f"    Eigenvalues:     λ1 = {eq.eigenvalues[0]:+.6f},  λ2 = {eq.eigenvalues[1]:+.6f}")
+        print(f"    Poincaré Class:  {eq.stability_class.value}")
+        print(f"    Asymptotically Stable: {eq.is_stable}")
+        print(f"    Explanation:     {eq.summary_text}")
+
+    print("\n[PART E: BIFURCATION CONDITIONS & NUMERICAL VERIFICATION]")
+    sweep_I = sweep_parameter_I(-0.2, 1.6, 80, params)
+    bifs = analyze_bifurcation_conditions(sweep_I)
+    print(f"  Sweeping I in [-0.2, 1.6] (80 points): {len(bifs)} bifurcation(s) verified.")
+    for b in bifs:
+        print(f"  -> {b['type']} at {b['parameter']} = {b['critical_value']:.5f}")
+        print(f"     Condition: {b['condition_verified']}")
+        if "transversality_rate" in b:
+            print(f"     Transversality dτ/dμ = {b['transversality_rate']:+.4f} != 0")
+
+    # Fold non-existence check
+    fold_info = check_fold_existence(params)
+    print(f"  Fold Non-Existence Proof: {fold_info['explanation']}")
+
+
+def run_compare(params_orig: FHNParameters, params_new: FHNParameters, t_end: float = 60.0):
+    print("\n" + "=" * 80)
+    print("   STAGE 6: BEFORE-AND-AFTER PARAMETER COMPARISON (PART F)")
+    print("=" * 80)
+    res = compare_fhn_states(params_orig, params_new, t_end=t_end)
+
+    print("\n--- PARAMETER COMPARISON ---")
+    print(f"  Baseline State A:  I = {params_orig.I:.4f},  ε = {params_orig.epsilon:.4f},  a = {params_orig.a:.4f},  b = {params_orig.b:.4f}")
+    print(f"  Perturbed State B: I = {params_new.I:.4f},  ε = {params_new.epsilon:.4f},  a = {params_new.a:.4f},  b = {params_new.b:.4f}")
+    print(f"  Deltas:            ΔI = {res.param_deltas['ΔI']:+.4f},  Δε = {res.param_deltas['Δε']:+.4f},  Δa = {res.param_deltas['Δa']:+.4f},  Δb = {res.param_deltas['Δb']:+.4f}")
+
+    eqA = res.equilibria_orig[0] if res.equilibria_orig else None
+    eqB = res.equilibria_new[0] if res.equilibria_new else None
+
+    print("\n--- EQUILIBRIA & EIGENVALUES ---")
+    if eqA:
+        print(f"  State A: (v*, w*) = ({eqA.v_star:+.5f}, {eqA.w_star:+.5f}) | τ = {eqA.trace:+.5f}, Δ = {eqA.determinant:+.5f}")
+        print(f"           λ1 = {eqA.eigenvalues[0]:+.5f}, λ2 = {eqA.eigenvalues[1]:+.5f} | [{eqA.stability_class.value}]")
+    if eqB:
+        print(f"  State B: (v*, w*) = ({eqB.v_star:+.5f}, {eqB.w_star:+.5f}) | τ = {eqB.trace:+.5f}, Δ = {eqB.determinant:+.5f}")
+        print(f"           λ1 = {eqB.eigenvalues[0]:+.5f}, λ2 = {eqB.eigenvalues[1]:+.5f} | [{eqB.stability_class.value}]")
+
+    print(f"\n--- STABILITY TRANSITION ---")
+    print(f"  {res.stability_transition}")
+
+    print(f"\n--- DYNAMICAL DIAGNOSIS ---")
+    print(f"  {res.dynamical_diagnosis}")
+
+
+def run_sweep(params: FHNParameters, param_to_sweep: str = "I"):
     print(f"\n--- BIFURCATION & PARAMETER SWEEP ANALYSIS ---")
 
     # 1. Hopf candidate check
@@ -382,6 +467,13 @@ def main():
     parser.add_argument("--dt", type=float, default=0.02, help="RK4 step size (default: 0.02)")
 
     parser.add_argument("--analyze", action="store_true", help="Run analytical equilibrium and Jacobian analysis")
+    parser.add_argument("--lab", action="store_true", help="Run Stage 6 Mathematical Analysis Laboratory (Parts A through E)")
+    parser.add_argument("--compare", action="store_true", help="Run Stage 6 State Comparison Laboratory (Part F)")
+    parser.add_argument("--I-new", type=float, default=None, help="New current I for comparison (State B)")
+    parser.add_argument("--eps-new", type=float, default=None, help="New epsilon for comparison (State B)")
+    parser.add_argument("--a-new", type=float, default=None, help="New intercept a for comparison (State B)")
+    parser.add_argument("--b-new", type=float, default=None, help="New slope b for comparison (State B)")
+    parser.add_argument("--sweep-param", type=str, default="I", choices=["I", "eps", "a", "b"], help="Parameter to sweep (default: I)")
     parser.add_argument("--solve", action="store_true", help="Run RK4 numerical trajectory integration")
     parser.add_argument("--sweep", action="store_true", help="Run automated parameter sweeps and bifurcation checks")
     parser.add_argument("--plot-figures", action="store_true", help="Generate and save PNG figures")
@@ -400,10 +492,23 @@ def main():
     params = FHNParameters(a=args.a, b=args.b, epsilon=args.eps, I=args.I)
 
     # If no specific action specified, run default demonstration
-    if not (args.analyze or args.solve or args.sweep or args.plot_figures or args.test or args.network or args.scenario):
+    if not (args.analyze or args.solve or args.sweep or args.plot_figures or args.test or args.network or args.scenario or args.lab or args.compare):
         run_analysis(params)
         run_solve(params, args.v0, args.w0, args.tend, args.dt)
         run_sweep(params)
+        return
+
+    if args.lab:
+        run_lab(params)
+        return
+
+    if args.compare:
+        i_new = args.I_new if args.I_new is not None else (0.5 if params.I == 0.0 else 0.0)
+        eps_new = args.eps_new if args.eps_new is not None else params.epsilon
+        a_new = args.a_new if args.a_new is not None else params.a
+        b_new = args.b_new if args.b_new is not None else params.b
+        params_new = FHNParameters(a=a_new, b=b_new, epsilon=eps_new, I=i_new)
+        run_compare(params, params_new, t_end=args.tend)
         return
 
     if args.analyze:
@@ -413,7 +518,7 @@ def main():
         run_solve(params, args.v0, args.w0, args.tend, args.dt)
 
     if args.sweep:
-        run_sweep(params)
+        run_sweep(params, param_to_sweep=args.sweep_param)
 
     if args.plot_figures:
         generate_figures(params, args.v0, args.w0, args.tend)

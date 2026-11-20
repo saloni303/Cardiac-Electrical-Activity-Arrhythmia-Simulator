@@ -64,6 +64,18 @@ class ScenarioConfig:
     reentry_num_nodes: int = 10
     reentry_coupling: float = 0.35
     reentry_epsilon: float = 0.15
+    # Optional custom network override
+    custom_network: Optional[CardiacNetwork] = None
+
+    def __post_init__(self):
+        if self.scenario_type == ScenarioType.SINUS_PAUSE:
+            if self.pause_start is None:
+                self.pause_start = 30.0
+            if self.pause_end is None:
+                self.pause_end = 110.0
+        elif self.scenario_type == ScenarioType.AV_BLOCK:
+            if self.av_conductance == 0.35:
+                self.av_conductance = 0.0
 
 
 @dataclass
@@ -215,7 +227,17 @@ def run_scenario(config: ScenarioConfig) -> ScenarioResult:
     Executes an arrhythmia scenario using the coupled FHN network through RK4 numerical integration.
     """
     # 1. Setup Network Topology
-    if config.scenario_type == ScenarioType.REENTRY:
+    if config.custom_network is not None:
+        net = config.custom_network
+        stim_fn = make_pacing_protocol(
+            pacing_interval=config.pacing_interval,
+            pulse_amplitude=config.pulse_amplitude,
+            pulse_duration=config.pulse_duration,
+            pause_start=config.pause_start,
+            pause_end=config.pause_end,
+            target_node_id=0,
+        )
+    elif config.scenario_type == ScenarioType.REENTRY:
         net = create_reentry_circuit(
             num_nodes=config.reentry_num_nodes,
             coupling=config.reentry_coupling,
@@ -403,9 +425,11 @@ def _generate_scenario_documentation(
         }
 
     elif st == ScenarioType.SINUS_PAUSE:
+        p_start = config.pause_start if config.pause_start is not None else 30.0
+        p_end = config.pause_end if config.pause_end is not None else 110.0
         param_expl = (
-            f"Input parameter changed: SA pacing stimulation is temporarily suppressed between t = {config.pause_start:.1f} "
-            f"and t = {config.pause_end:.1f}. External drive is clamped to zero during this pause window."
+            f"Input parameter changed: SA pacing stimulation is temporarily suppressed between t = {p_start:.1f} "
+            f"and t = {p_end:.1f}. External drive is clamped to zero during this pause window."
         )
         math_assump = (
             "Models transient sinus arrest or exit block where the primary pacemaker fails to initiate excitation. "
@@ -413,7 +437,7 @@ def _generate_scenario_documentation(
         )
         comp_norm = {
             "rate_ratio": (act_freq / baseline_freq) if baseline_freq > 0 else 0.0,
-            "status": f"Temporary complete cessation of activations during pause interval [t={config.pause_start}, t={config.pause_end}].",
+            "status": f"Temporary complete cessation of activations during pause interval [t={p_start:.1f}, t={p_end:.1f}].",
             "conduction_success": True,
         }
 

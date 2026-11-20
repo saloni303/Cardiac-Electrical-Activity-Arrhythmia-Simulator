@@ -290,7 +290,120 @@ Every event across all 6 compartments records: `Simulation Time`, `Region`, `Nod
 
 ---
 
-## 10. Comparative Literature Analysis
+## 10. Mathematical Analysis Laboratory (Stage 6)
+
+### 10.1 Academic Scope & Planar Boundary
+The mathematical laboratory focuses exclusively on the two-dimensional single-cell FitzHugh–Nagumo dynamical system:
+$$\frac{dv}{dt} = f(v, w) = v - \frac{v^3}{3} - w + I$$
+$$\frac{dw}{dt} = g(v, w) = \varepsilon(v + a - bw)$$
+
+**Critical Architectural Separation:**  
+The two-dimensional phase plane, nullclines, and planar Poincaré stability classifications apply strictly to the standalone single-cell system ($\mathbb{R}^2$). They must **not** be confused with or applied to the $2N$-dimensional state space ($\mathbb{R}^{2N}$) of the coupled cardiac network.
+
+### 10.2 Part A & B: Nullclines, Cardano Equilibrium Roots & Residual Verification
+1. **$v$-nullcline ($\dot{v} = 0$):**
+   $$w = v - \frac{v^3}{3} + I$$
+2. **$w$-nullcline ($\dot{w} = 0$):**
+   $$w = \frac{v + a}{b}$$
+3. **Cardano Cubic Derivation:**  
+   Intersection points satisfy $b v^3 + 3(1 - b)v + 3(a - bI) = 0$. For $b \in (0, 1)$, the linear coefficient $3(1-b) > 0$, guaranteeing a strictly positive cubic discriminant $\Delta_{\text{cubic}} > 0$ and exactly one real equilibrium root $(v^*, w^*)$.
+4. **Numerical Residual Verification:**  
+   Every computed equilibrium is validated against machine-precision residuals:
+   $$\|r_v\| = \left| v^* - \frac{(v^*)^3}{3} - w^* + I \right| < 10^{-12}, \quad \|r_w\| = |\varepsilon(v^* + a - b w^*)| < 10^{-12}$$
+
+### 10.3 Part C: Analytical Jacobian & Poincaré Stability
+Linearization around an equilibrium $(v^*, w^*)$ yields the analytical Jacobian matrix:
+$$J(v^*, w^*) = \begin{pmatrix} 1 - (v^*)^2 & -1 \\ \varepsilon & -\varepsilon b \end{pmatrix}$$
+
+The linear stability invariants are:
+- **Trace:** $\tau = \operatorname{tr}(J) = 1 - (v^*)^2 - \varepsilon b$
+- **Determinant:** $\Delta = \det(J) = \varepsilon [1 - b + b (v^*)^2]$
+- **Discriminant:** $D = \tau^2 - 4\Delta$
+- **Eigenvalues:** $\lambda_{1,2} = \frac{\tau \pm \sqrt{D}}{2}$
+
+**Poincaré Classification Scheme:**
+- $\Delta < 0$: Saddle Point (Hyperbolic, Unstable).
+- $\Delta > 0, D \ge 0, \tau < 0$: Stable Node (Monotonic Exponential Sink).
+- $\Delta > 0, D \ge 0, \tau > 0$: Unstable Node (Monotonic Exponential Source).
+- $\Delta > 0, D < 0, \tau < 0$: Locally Asymptotically Stable Focus (Damped Spiral Sink).
+- $\Delta > 0, D < 0, \tau > 0$: Unstable Focus (Spiral Source / Onset of Stable Limit Cycle).
+- $\tau = 0, \Delta > 0$: Non-Hyperbolic Center / Andronov-Hopf Boundary.
+- $\Delta = 0$: Non-Hyperbolic Fold / Saddle-Node Boundary.
+
+### 10.4 Part D: Phase-Plane Flow Fields & Normalized Direction Vectors
+In the $(v, w)$ phase plane, fast-slow dynamics cause large disparities in velocity magnitudes ($|\dot{v}| \sim 1$ while $|\dot{w}| \sim \varepsilon \ll 1$). Direction fields are rendered using normalized direction vectors:
+$$\hat{f}(v, w) = \frac{\dot{v}}{\sqrt{\dot{v}^2 + \dot{w}^2 + \delta}}, \quad \hat{g}(v, w) = \frac{\dot{w}}{\sqrt{\dot{v}^2 + \dot{w}^2 + \delta}}$$
+Trajectories integrated via 4th-order Runge-Kutta from selectable initial coordinates $(v_0, w_0)$ confirm convergence to either the stable spiral fixed point (resting quiescence) or the enclosed periodic limit cycle (pacemaker autorhythmicity).
+
+### 10.5 Part E: Multi-Parameter Bifurcation Sweeps ($I, \varepsilon, a, b$)
+1. **Andronov-Hopf Bifurcation:**  
+   Occurs where $\tau = 0$ with $\Delta > 0$. The critical voltage is $(v_H^*)^2 = 1 - \varepsilon b$. The critical applied current is:
+   $$I_{\text{Hopf}} = \frac{v_H^* + a}{b} - v_H^* + \frac{(v_H^*)^3}{3}$$
+   The transversality condition $\left.\frac{d\operatorname{Re}(\lambda)}{dI}\right|_{I_H} \neq 0$ is verified numerically.
+2. **Theorem 2 (Fold Non-Existence for Physiological $b < 1$):**  
+   A saddle-node fold bifurcation requires $\Delta = \varepsilon[1 - b + b(v^*)^2] = 0 \iff (v^*)^2 = 1 - 1/b$. For physiological cardiac tissue $b \in (0, 1)$, $1 - 1/b < 0$. Because $(v^*)^2 \ge 0$ for all real states, no real equilibrium can satisfy $\Delta = 0$. Multiple equilibria and fold bifurcations can only occur when $b > 1.0$.
+3. **Node-Focus Boundary:**  
+   Separates oscillatory spiral relaxation from monotonic exponential decay along the parabola $D = \tau^2 - 4\Delta = 0$.
+
+### 10.6 Part F: Parameter Comparison Laboratory
+A dedicated before-and-after state comparison engine compares Baseline State A against Perturbed State B:
+- Computes parameter deltas: $\Delta I, \Delta \varepsilon, \Delta a, \Delta b$.
+- Evaluates dual Jacobian metrics and eigenvalues.
+- Diagnoses the topological regime transition:
+  - *Restabilization:* Unstable focus (limit cycle) $\to$ stable quiescent fixed point.
+  - *Hopf Excitation:* Quiescent focus $\to$ unstable focus with autorhythmic limit cycle firing.
+  - *Damping Mode Shift:* Stable focus $\to$ stable node without loss of asymptotic stability.
+  - *Equilibrium Translation:* Voltage coordinate shift maintaining invariant topological stability.
+
+---
+
+## 11. Integrated Simulator Dashboard Architecture (Stage 7)
+
+### 11.1 Single-Source Multi-Scale Pipeline
+Stage 7 unifies all mathematical, network, scenario, visualization, and comparison components into a single, cohesive scientific dashboard (**Cardiac Electrical Activity and Arrhythmia Simulator**).
+
+```
+                            Coupled Network ODE System
+                      [rk4_solve / solve_network (RK4)]
+                                     │
+           ┌─────────────────────────┼─────────────────────────┐
+           ▼                         ▼                         ▼
+   60 FPS Anatomical      Activation-Derived Lead     Multi-Channel Event
+   Heart Visualizer       Rhythm Trace (Dipole)       Timeline & Missed Beats
+  (HTML5/Canvas/SVG)        Φ(t) & Lead II               (Sub-step timestamps)
+           │                         │                         │
+           └─────────────────────────┼─────────────────────────┘
+                                     ▼
+                    Unified Main Simulator Dashboard
+                  (7 Sections + 5 Modular Workspaces)
+```
+
+**Single Source of Truth:**
+A single numerical execution of `run_scenario` simultaneously populates:
+1. Continuous regional activation states $(v_i, w_i)$ for the 60 FPS anatomical heart visualizer.
+2. The electrical dipole projection rhythm waveform $\Phi(t)$ and far-field Lead II projection.
+3. Chronological sub-step threshold crossing timestamps in the multi-channel activation event timeline.
+4. Fast $v_i(t)$ and slow $w_i(t)$ regional action potentials.
+5. Planar nullclines, equilibrium coordinates $(v^*, w^*)$, analytical Jacobian $J$, eigenvalues, and Poincaré stability classifications for the resting cell model.
+
+### 11.2 Experiment Comparison & Baseline Delta Engine
+The integrated dashboard features an in-memory session-state baseline caching system (`st.session_state["baseline_sim"]`):
+- **Baseline Capture:** Stores complete simulation trajectory, parameter tuple $(I, \varepsilon, a, b, D, T_{\text{pace}}, g_{\text{AV}})$, cycle length sequence, and rhythm trace $\Phi_{\text{base}}(t)$.
+- **Parametric Delta Tracking:** Computes exact differences $\Delta \mathbf{p} = \mathbf{p}_{\text{trial}} - \mathbf{p}_{\text{baseline}}$.
+- **Electrophysiological Transition Synthesis:** Automatically characterizes whether parameter alterations produced conduction acceleration, decremental delay, conduction block (dropped ventricular depolarizations), or circus movement re-entry.
+- **Waveform Overlay:** Displays synchronized side-by-side or overlaid traces ($\Phi_{\text{base}}(t)$ in blue vs $\Phi_{\text{trial}}(t)$ in amber) to visualize activation timing shifts directly.
+
+### 11.3 Modular Multi-Workspace Navigation
+The application provides clear navigation across 5 specialized environments:
+1. **🫀 Main Dashboard:** Unified centerpiece combining Sections 1–7 (Heart Visualizer, Simulation Controls, Arrhythmia Controls, Parameter Panel, Electrical Rhythm, Mathematical Analysis, and Experiment Comparison).
+2. **🏥 Arrhythmia Lab:** Specialized comparative investigation of Arrhythmia Scenarios 1–6 with Einthoven Lead II dipole field analysis and CSV event log download.
+3. **🔬 Mathematical Analysis:** Full single-cell dynamical laboratory (Parts A–F: Nullclines, Cardano roots, Jacobian, Poincaré stability, phase-plane flow field, and multi-parameter sweeps over $I, \varepsilon, a, b$).
+4. **⚖️ Parameter Experiment Lab:** Controlled sandbox allowing side-by-side comparative simulation runs with full parameter delta tables and comparative graphs.
+5. **📖 About the Model:** Formal academic documentation explaining equations, variables, network extensions, assumptions, limitations, and the distinction between a reduced pedagogical model and a real human heart.
+
+---
+
+## 12. Comparative Literature Analysis
 
 | Feature | Gonzalez Herrero et al. (2021) | Balakrishnan et al. (2015) | Our Present Implementation |
 |:---|:---|:---|:---|
@@ -303,34 +416,39 @@ Every event across all 6 compartments records: `Simulation Time`, `Region`, `Nod
 | **Rhythm Trace** | Point membrane potential | Abstract oscillator phase | Dipole moment projection + Lead II |
 | **Event Logging** | None | Frequency spectrum | Multi-channel numerical event log |
 | **Visualization** | 2D raster heatmaps | Abstract state-space | Interactive Anatomical SVG + Canvas |
+| **Laboratory Suite** | Minimal | None | 6-Part Phase-Plane & Comparison Lab |
 
 ---
 
-## 11. Verification and Test Suite Summary
+## 13. Verification and Test Suite Summary
 
-The entire mathematical engine, network solver, scenario engine, visualization component, and rhythm analysis suite is validated by **47 automated unit tests** across 9 modules:
+The entire mathematical engine, network solver, scenario engine, visualization component, rhythm analysis suite, mathematical analysis laboratory, and integrated dashboard are validated by **57 automated unit tests** across 11 modules:
 
 ```
 tests/test_audit_stage4.py       7 passed  (Deterministic invariance, stimulus suppression, AV block)
 tests/test_equilibrium.py        4 passed  (Cardano accuracy, residuals < 1e-12)
 tests/test_jacobian.py           3 passed  (Analytical vs finite-diff Jacobian < 1e-6)
+tests/test_laboratory.py         6 passed  (Stage 6: Parts A-F, Cardano roots, Jacobian, sweeps, comparison)
 tests/test_network.py            5 passed  (Isolated cells, wave delay, AV block, refractoriness)
 tests/test_rhythm_analysis.py    7 passed  (Event log, BPM conversion, missed beats, Lead II dipole)
 tests/test_rk4_solver.py         4 passed  (4th-order convergence: E(h)/E(h/2) ≈ 16.0)
 tests/test_scenarios.py          6 passed  (Normal, tachy, brady, pause, block, honest re-entry)
+tests/test_stage7_dashboard.py   4 passed  (Stage 7: Multi-scale pipeline, regional parameters, baseline delta)
 tests/test_sweeps.py             4 passed  (Hopf condition, fold non-existence)
 tests/test_visualization.py      7 passed  (Color mapping, frame packing, HTML generation, fidelity)
 ------------------------------------------------------------------------------------------------
-Total:                          47 passed in 57.04s (100% pass rate)
+Total:                          57 passed in 58.12s (100% pass rate)
 ```
 
 ---
 
-## 12. Conclusion
+## 14. Conclusion
 
 The developed software system fulfills all academic and scientific specifications:
 1. The standalone FitzHugh–Nagumo model is preserved as an independent mathematical module.
 2. The coupled network is a mathematically rigorous diffusive extension.
 3. Conduction delay, block, and re-entry emerge organically from the differential equations.
 4. The anatomical visualization is driven exclusively by the numerical simulation state.
-5. All educational and clinical limitations are clearly documented.
+5. The Stage 6 Mathematical Analysis Laboratory provides complete analytical, geometric, and comparative verification.
+6. The Stage 7 Integrated Dashboard delivers a unified multi-scale scientific interface with live baseline comparison.
+7. All educational and clinical limitations are clearly documented.
