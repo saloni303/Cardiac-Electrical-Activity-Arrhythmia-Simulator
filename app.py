@@ -85,6 +85,19 @@ from fhn_core.rhythm_analysis import (
     compute_true_ecg_lead_approximation,
     compare_with_normal_rhythm,
 )
+from fhn_core.experiments import (
+    ExperimentParameters,
+    ExperimentComparisonResult,
+    ParameterSweepPoint,
+    ParameterSweepConfig,
+    build_experiment_network,
+    run_experiment_simulation,
+    compare_experiments,
+    run_parameter_sweep,
+    export_comparison_to_csv,
+    export_sweep_to_csv,
+    compute_conduction_latency_san_to_ventricle,
+)
 
 # -----------------------------------------------------------------------------
 # PAGE CONFIGURATION & DARK SCIENTIFIC THEME
@@ -1031,67 +1044,523 @@ elif "Mathematical Analysis" in nav_view:
 
 
 # =============================================================================
-# VIEW 4: PARAMETER EXPERIMENT LAB
+# VIEW 4: PARAMETER EXPERIMENT LAB (STAGE 8 COMPLETE LABORATORY)
 # =============================================================================
 elif "Parameter Experiment Lab" in nav_view:
-    st.title("⚖️ Parameter Experiment Laboratory")
-    st.caption("Controlled Exploration of Electrophysiological Parameter Changes on Cardiac Conduction")
+    st.title("⚖️ Parameter Experiment Laboratory (Stage 8)")
+    st.caption("Controlled Scientific Exploration of Electrophysiological Parameter Changes, Conduction Transitions, and Dynamical Stability")
 
-    exp_colA, exp_colB = st.columns(2)
-
-    with exp_colA:
-        st.markdown("### 🔵 Baseline State (Condition A)")
-        p_pace_A = st.slider("Pacing Interval (A)", 25.0, 100.0, 45.0, 5.0, key="p_pace_A")
-        g_av_A = st.slider("AV Conductance g_AV (A)", 0.0, 0.50, 0.35, 0.05, key="g_av_A")
-        D_A = st.slider("Global Coupling D (A)", 0.1, 1.5, 0.70, 0.1, key="D_A")
-        cfg_A = ScenarioConfig(scenario_type=ScenarioType.NORMAL, pacing_interval=p_pace_A, av_conductance=g_av_A, global_coupling=D_A, t_end=120.0)
-        res_A = run_scenario(cfg_A)
-
-    with exp_colB:
-        st.markdown("### 🔴 Experimental State (Condition B)")
-        p_pace_B = st.slider("Pacing Interval (B)", 25.0, 100.0, 35.0, 5.0, key="p_pace_B")
-        g_av_B = st.slider("AV Conductance g_AV (B)", 0.0, 0.50, 0.08, 0.05, key="g_av_B")
-        D_B = st.slider("Global Coupling D (B)", 0.1, 1.5, 0.70, 0.1, key="D_B")
-        cfg_B = ScenarioConfig(scenario_type=ScenarioType.NORMAL, pacing_interval=p_pace_B, av_conductance=g_av_B, global_coupling=D_B, t_end=120.0)
-        res_B = run_scenario(cfg_B)
-
-    # Comparative Metrics Table
-    hr_A = estimate_heart_rate_bpm(res_A.mean_cycle_length)
-    hr_B = estimate_heart_rate_bpm(res_B.mean_cycle_length)
-
-    val_cl_A = f"{res_A.mean_cycle_length:.2f} u" if res_A.mean_cycle_length else "N/A (Blocked)"
-    val_cl_B = f"{res_B.mean_cycle_length:.2f} u" if res_B.mean_cycle_length else "N/A (Blocked)"
-    diff_cl = (
-        f"{res_B.mean_cycle_length - res_A.mean_cycle_length:+.2f} u"
-        if (res_A.mean_cycle_length is not None and res_B.mean_cycle_length is not None)
-        else "N/A"
-    )
-
-    val_bpm_A = f"{hr_A['bpm']:.1f} BPM" if hr_A.get("bpm") is not None else "0.0 BPM (Blocked)"
-    val_bpm_B = f"{hr_B['bpm']:.1f} BPM" if hr_B.get("bpm") is not None else "0.0 BPM (Blocked)"
-    diff_bpm = (
-        f"{hr_B['bpm'] - hr_A['bpm']:+.1f} BPM"
-        if (hr_A.get("bpm") is not None and hr_B.get("bpm") is not None)
-        else "N/A"
-    )
-
-    st.markdown("### Side-by-Side Experimental Analysis")
-    cmp_table = pd.DataFrame([
-        {"Parameter / Metric": "Pacing Interval T_pace", "State A (Baseline)": f"{p_pace_A:.1f} u", "State B (Trial)": f"{p_pace_B:.1f} u", "Difference (B - A)": f"{p_pace_B - p_pace_A:+.1f} u"},
-        {"Parameter / Metric": "AV Conductance g_AV", "State A (Baseline)": f"{g_av_A:.3f}", "State B (Trial)": f"{g_av_B:.3f}", "Difference (B - A)": f"{g_av_B - g_av_A:+.3f}"},
-        {"Parameter / Metric": "Global Coupling D", "State A (Baseline)": f"{D_A:.2f}", "State B (Trial)": f"{D_B:.2f}", "Difference (B - A)": f"{D_B - D_A:+.2f}"},
-        {"Parameter / Metric": "Mean Cycle Length", "State A (Baseline)": val_cl_A, "State B (Trial)": val_cl_B, "Difference (B - A)": diff_cl},
-        {"Parameter / Metric": "Estimated Rate (BPM)", "State A (Baseline)": val_bpm_A, "State B (Trial)": val_bpm_B, "Difference (B - A)": diff_bpm},
-        {"Parameter / Metric": "Conduction Drops", "State A (Baseline)": f"{len(res_A.failures)}", "State B (Trial)": f"{len(res_B.failures)}", "Difference (B - A)": f"{len(res_B.failures) - len(res_A.failures):+d}"},
+    # Mode Selection Tabs
+    tab_exp_ctrl, tab_exp_sweep = st.tabs([
+        "🔬 Controlled Experiment: Baseline vs Trial Comparison",
+        "📈 Automated Parameter Sweep Engine",
     ])
-    st.dataframe(cmp_table, use_container_width=True)
 
-    # Overlaid Waveforms
-    fig_ab = go.Figure()
-    fig_ab.add_trace(go.Scatter(x=res_A.time, y=res_A.rhythm_trace, mode="lines", name="Rhythm State A (Baseline)", line=dict(color="#3b82f6", width=2.0)))
-    fig_ab.add_trace(go.Scatter(x=res_B.time, y=res_B.rhythm_trace, mode="lines", name="Rhythm State B (Trial)", line=dict(color="#ef4444", width=2.0, dash="dash")))
-    fig_ab.update_layout(title="Simulated Activation Waveform Comparison (State A vs State B)", xaxis_title="Time t", yaxis_title="Dipole Moment Φ(t)", template="plotly_dark", height=350)
-    st.plotly_chart(fig_ab, use_container_width=True)
+    # -------------------------------------------------------------------------
+    # TAB 1: CONTROLLED EXPERIMENT (BASELINE VS TRIAL)
+    # -------------------------------------------------------------------------
+    with tab_exp_ctrl:
+        st.markdown("""
+        **Controlled Experiment Workflow:**
+        `1. Select baseline scenario` ➔ `2. Run & inspect baseline` ➔ `3. Save baseline state` ➔ `4. Change a targeted parameter` ➔ `5. Run trial simulation` ➔ `6. Compare activation sequences, traces, and stability`
+        """)
+
+        # Initialize Session State for Saved Baseline
+        if "exp_saved_params" not in st.session_state:
+            st.session_state.exp_saved_params = ExperimentParameters(
+                scenario_type=ScenarioType.NORMAL,
+                pacing_interval=45.0,
+                av_conductance=0.35,
+                global_coupling=0.70,
+                cell_a=0.70,
+                cell_b=0.80,
+                cell_epsilon=0.08,
+                cell_I_bias=0.0,
+                t_end=120.0,
+            )
+            st.session_state.exp_is_saved = False
+
+        col_base_box, col_trial_box = st.columns(2)
+
+        # -----------------------------
+        # 🔵 CONDITION A: BASELINE
+        # -----------------------------
+        with col_base_box:
+            st.markdown("### 🔵 Baseline State (Condition A)")
+
+            base_sc_choice = st.selectbox(
+                "Baseline Scenario:",
+                ["Normal Sinus Rhythm", "Tachycardia-Like", "Bradycardia-Like", "Sinus Pause", "AV Block-Like"],
+                key="base_sc_choice"
+            )
+            sc_map = {
+                "Normal Sinus Rhythm": ScenarioType.NORMAL,
+                "Tachycardia-Like": ScenarioType.TACHYCARDIA,
+                "Bradycardia-Like": ScenarioType.BRADYCARDIA,
+                "Sinus Pause": ScenarioType.SINUS_PAUSE,
+                "AV Block-Like": ScenarioType.AV_BLOCK,
+            }
+            base_sc_type = sc_map[base_sc_choice]
+
+            # Pacing and coupling
+            base_pace = st.slider("Pacing Interval T_pace (A)", 25.0, 100.0, 45.0, 1.0, key="base_pace")
+            base_gav = st.slider("AV Conductance g_AV (A)", 0.0, 0.50, 0.35, 0.02, key="base_gav")
+            base_D = st.slider("Global Coupling D (A)", 0.1, 1.5, 0.70, 0.05, key="base_D")
+            base_I_stim = st.slider("Stimulus Current Amplitude I (A)", 0.5, 3.0, 1.8, 0.1, key="base_I_stim")
+
+            with st.expander("Cellular & Regional Parameters (A)", expanded=False):
+                base_a = st.slider("Parameter a (A)", 0.0, 1.2, 0.70, 0.05, key="base_a")
+                base_b = st.slider("Parameter b (A)", 0.2, 1.5, 0.80, 0.05, key="base_b")
+                base_eps = st.slider("Recovery Timescale ε (A)", 0.01, 0.25, 0.08, 0.005, key="base_eps")
+                base_I_bias = st.slider("Cellular Bias Current I_bias (A)", -0.5, 1.0, 0.0, 0.05, key="base_I_bias")
+                base_avn_eps = st.slider("AV Node ε (AVN, A)", 0.02, 0.15, 0.04, 0.01, key="base_avn_eps")
+                base_vent_eps = st.slider("Ventricle ε (Vent, A)", 0.02, 0.15, 0.06, 0.01, key="base_vent_eps")
+
+            base_params = ExperimentParameters(
+                scenario_type=base_sc_type,
+                pacing_interval=base_pace,
+                stimulus_amplitude=base_I_stim,
+                av_conductance=base_gav,
+                global_coupling=base_D,
+                cell_a=base_a,
+                cell_b=base_b,
+                cell_epsilon=base_eps,
+                cell_I_bias=base_I_bias,
+                t_end=120.0,
+                region_overrides={
+                    "AVN": {"epsilon": base_avn_eps},
+                    "Ventricle": {"epsilon": base_vent_eps},
+                }
+            )
+
+            c_btn1, c_btn2 = st.columns(2)
+            with c_btn1:
+                if st.button("💾 Save State A as Baseline", key="btn_save_baseline", use_container_width=True):
+                    st.session_state.exp_saved_params = base_params.copy()
+                    st.session_state.exp_is_saved = True
+                    st.toast("Baseline State A saved successfully!", icon="💾")
+            with c_btn2:
+                if st.button("🔄 Reset to Default Normal", key="btn_reset_baseline", use_container_width=True):
+                    st.session_state.exp_saved_params = ExperimentParameters()
+                    st.session_state.exp_is_saved = False
+                    st.rerun()
+
+            if st.session_state.exp_is_saved:
+                st.caption("🔒 **Baseline state currently locked:** Used as reference for delta comparisons.")
+
+        # -----------------------------
+        # 🔴 CONDITION B: TRIAL STATE
+        # -----------------------------
+        with col_trial_box:
+            st.markdown("### 🔴 Experimental State (Condition B)")
+
+            trial_sc_choice = st.selectbox(
+                "Trial Scenario:",
+                ["Normal Sinus Rhythm", "Tachycardia-Like", "Bradycardia-Like", "Sinus Pause", "AV Block-Like"],
+                key="trial_sc_choice"
+            )
+            trial_sc_type = sc_map[trial_sc_choice]
+
+            trial_pace = st.slider("Pacing Interval T_pace (B)", 25.0, 100.0, 36.0, 1.0, key="trial_pace")
+            trial_gav = st.slider("AV Conductance g_AV (B)", 0.0, 0.50, 0.08, 0.02, key="trial_gav", help="Lower conductances can produce partial or complete conduction block.")
+            trial_D = st.slider("Global Coupling D (B)", 0.1, 1.5, 0.70, 0.05, key="trial_D")
+            trial_I_stim = st.slider("Stimulus Current Amplitude I (B)", 0.5, 3.0, 1.8, 0.1, key="trial_I_stim")
+
+            with st.expander("Cellular & Regional Parameters (B)", expanded=False):
+                trial_a = st.slider("Parameter a (B)", 0.0, 1.2, 0.70, 0.05, key="trial_a")
+                trial_b = st.slider("Parameter b (B)", 0.2, 1.5, 0.80, 0.05, key="trial_b")
+                trial_eps = st.slider("Recovery Timescale ε (B)", 0.01, 0.25, 0.08, 0.005, key="trial_eps")
+                trial_I_bias = st.slider("Cellular Bias Current I_bias (B)", -0.5, 1.0, 0.0, 0.05, key="trial_I_bias")
+                trial_avn_eps = st.slider("AV Node ε (AVN, B)", 0.02, 0.15, 0.04, 0.01, key="trial_avn_eps")
+                trial_vent_eps = st.slider("Ventricle ε (Vent, B)", 0.02, 0.15, 0.06, 0.01, key="trial_vent_eps")
+
+            trial_params = ExperimentParameters(
+                scenario_type=trial_sc_type,
+                pacing_interval=trial_pace,
+                stimulus_amplitude=trial_I_stim,
+                av_conductance=trial_gav,
+                global_coupling=trial_D,
+                cell_a=trial_a,
+                cell_b=trial_b,
+                cell_epsilon=trial_eps,
+                cell_I_bias=trial_I_bias,
+                t_end=120.0,
+                region_overrides={
+                    "AVN": {"epsilon": trial_avn_eps},
+                    "Ventricle": {"epsilon": trial_vent_eps},
+                }
+            )
+
+        # Execute Comparison
+        comp_res = compare_experiments(base_params, trial_params)
+
+        # ---------------------------------------------------------------------
+        # SCIENTIFIC INTERPRETATION ALERT BANNER
+        # ---------------------------------------------------------------------
+        st.markdown("---")
+        if comp_res.is_arrhythmia_induced:
+            st.warning(f"⚠️ **Electrophysiological Transition Detected:**\n\n{comp_res.scientific_interpretation}")
+        else:
+            st.success(f"✅ **Physiological Conduction Margin Preserved:**\n\n{comp_res.scientific_interpretation}")
+
+        # ---------------------------------------------------------------------
+        # DETAILED COMPARISON TABS
+        # ---------------------------------------------------------------------
+        c_sub1, c_sub2, c_sub3, c_sub4, c_sub5 = st.tabs([
+            "📊 Metrics & Parameters Comparison",
+            "⚡ Transmembrane Potential Traces v(t) & w(t)",
+            "🫀 Activation Sequence & Latencies",
+            "🌐 Activation-Derived Rhythm Waveform Φ(t)",
+            "📐 Standalone Cell Equilibrium & Phase Plane",
+        ])
+
+        with c_sub1:
+            st.subheader("Side-by-Side Controlled Experiment Comparison")
+
+            # Format Metrics Table
+            bpm_A_str = f"{comp_res.bpm_baseline:.1f} BPM" if comp_res.bpm_baseline is not None else "0.0 BPM (Blocked)"
+            bpm_B_str = f"{comp_res.bpm_trial:.1f} BPM" if comp_res.bpm_trial is not None else "0.0 BPM (Blocked)"
+            diff_bpm_str = f"{comp_res.bpm_trial - comp_res.bpm_baseline:+.1f} BPM" if (comp_res.bpm_baseline and comp_res.bpm_trial) else "N/A"
+
+            cl_A_str = f"{comp_res.mean_cl_baseline:.2f} u" if comp_res.mean_cl_baseline is not None else "N/A (Blocked)"
+            cl_B_str = f"{comp_res.mean_cl_trial:.2f} u" if comp_res.mean_cl_trial is not None else "N/A (Blocked)"
+            diff_cl_str = f"{comp_res.mean_cl_trial - comp_res.mean_cl_baseline:+.2f} u" if (comp_res.mean_cl_baseline and comp_res.mean_cl_trial) else "N/A"
+
+            lat_A_str = f"{comp_res.san_to_vent_latency_baseline:.2f} u" if comp_res.san_to_vent_latency_baseline is not None else "N/A (Severed)"
+            lat_B_str = f"{comp_res.san_to_vent_latency_trial:.2f} u" if comp_res.san_to_vent_latency_trial is not None else "N/A (Severed)"
+            diff_lat_str = f"{comp_res.san_to_vent_latency_trial - comp_res.san_to_vent_latency_baseline:+.2f} u" if (comp_res.san_to_vent_latency_baseline and comp_res.san_to_vent_latency_trial) else "N/A"
+
+            cmp_table_rows = [
+                {"Category": "Pacing & Conduction", "Item": "Ventricular Activation Rate", "State A (Baseline)": bpm_A_str, "State B (Trial)": bpm_B_str, "Delta (B - A)": diff_bpm_str},
+                {"Category": "Pacing & Conduction", "Item": "Mean Cycle Length", "State A (Baseline)": cl_A_str, "State B (Trial)": cl_B_str, "Delta (B - A)": diff_cl_str},
+                {"Category": "Pacing & Conduction", "Item": "SAN-to-Ventricle Latency", "State A (Baseline)": lat_A_str, "State B (Trial)": lat_B_str, "Delta (B - A)": diff_lat_str},
+                {"Category": "Pacing & Conduction", "Item": "Conduction Drops / Failures", "State A (Baseline)": f"{comp_res.conduction_drops_baseline}", "State B (Trial)": f"{comp_res.conduction_drops_trial}", "Delta (B - A)": f"{comp_res.conduction_drops_trial - comp_res.conduction_drops_baseline:+d}"},
+                {"Category": "Pacing & Conduction", "Item": "Conduction Status", "State A (Baseline)": comp_res.conduction_status_baseline, "State B (Trial)": comp_res.conduction_status_trial, "Delta (B - A)": "Arrhythmia Shift" if comp_res.is_arrhythmia_induced else "Preserved"},
+            ]
+
+            for diff in comp_res.changed_parameters:
+                cmp_table_rows.append({
+                    "Category": "Parameter Changed",
+                    "Item": diff["label"],
+                    "State A (Baseline)": str(diff["baseline"]),
+                    "State B (Trial)": str(diff["trial"]),
+                    "Delta (B - A)": f"{diff['difference']:+.3f}" if isinstance(diff["difference"], (int, float)) else str(diff["difference"]),
+                })
+
+            if comp_res.single_cell_baseline_eq and comp_res.single_cell_trial_eq:
+                eq_a = comp_res.single_cell_baseline_eq
+                eq_b = comp_res.single_cell_trial_eq
+                cmp_table_rows.extend([
+                    {"Category": "Cellular Stability", "Item": "Equilibrium Voltage v*", "State A (Baseline)": f"{eq_a.v_star:.4f}", "State B (Trial)": f"{eq_b.v_star:.4f}", "Delta (B - A)": f"{eq_b.v_star - eq_a.v_star:+.4f}"},
+                    {"Category": "Cellular Stability", "Item": "Jacobian Trace τ", "State A (Baseline)": f"{eq_a.trace:.4f}", "State B (Trial)": f"{eq_b.trace:.4f}", "Delta (B - A)": f"{eq_b.trace - eq_a.trace:+.4f}"},
+                    {"Category": "Cellular Stability", "Item": "Jacobian Determinant Δ", "State A (Baseline)": f"{eq_a.determinant:.4f}", "State B (Trial)": f"{eq_b.determinant:.4f}", "Delta (B - A)": f"{eq_b.determinant - eq_a.determinant:+.4f}"},
+                    {"Category": "Cellular Stability", "Item": "Stability Regime", "State A (Baseline)": eq_a.stability_class.value, "State B (Trial)": eq_b.stability_class.value, "Delta (B - A)": "Shifted" if eq_a.stability_class != eq_b.stability_class else "Invariant"},
+                ])
+
+            df_comp = pd.DataFrame(cmp_table_rows)
+            st.dataframe(df_comp, use_container_width=True)
+
+            # Download CSV
+            csv_comp = export_comparison_to_csv(comp_res)
+            st.download_button(
+                label="📥 Download Experiment Comparison as CSV",
+                data=csv_comp,
+                file_name="cardiac_experiment_comparison.csv",
+                mime="text/csv",
+            )
+
+        with c_sub2:
+            st.subheader("Transmembrane Voltage v_i(t) and Recovery Variable w_i(t) Traces")
+            fig_traces = make_subplots(
+                rows=2, cols=1, shared_xaxes=True,
+                subplot_titles=(
+                    "Transmembrane Potentials v_i(t) [Solid: Baseline A | Dashed: Trial B]",
+                    "Recovery Variables w_i(t) [Solid: Baseline A | Dashed: Trial B]",
+                )
+            )
+
+            res_A = comp_res.baseline_result
+            res_B = comp_res.trial_result
+            ch_colors = {0: "#f59e0b", 1: "#3b82f6", 2: "#ec4899", 5: "#10b981"}
+            ch_names = {0: "SAN", 1: "Atrium", 2: "AVN", 5: "Ventricle"}
+
+            for node_idx in [0, 1, 2, 5]:
+                col = ch_colors[node_idx]
+                nm = ch_names[node_idx]
+                # Baseline
+                fig_traces.add_trace(go.Scatter(
+                    x=res_A.time, y=res_A.V[:, node_idx], mode="lines",
+                    name=f"{nm} Voltage (A)", line=dict(color=col, width=2.0)
+                ), row=1, col=1)
+                fig_traces.add_trace(go.Scatter(
+                    x=res_A.time, y=res_A.W[:, node_idx], mode="lines",
+                    name=f"{nm} Recovery (A)", line=dict(color=col, width=1.5), showlegend=False
+                ), row=2, col=1)
+
+                # Trial
+                fig_traces.add_trace(go.Scatter(
+                    x=res_B.time, y=res_B.V[:, node_idx], mode="lines",
+                    name=f"{nm} Voltage (B)", line=dict(color=col, width=2.0, dash="dash")
+                ), row=1, col=1)
+                fig_traces.add_trace(go.Scatter(
+                    x=res_B.time, y=res_B.W[:, node_idx], mode="lines",
+                    name=f"{nm} Recovery (B)", line=dict(color=col, width=1.5, dash="dash"), showlegend=False
+                ), row=2, col=1)
+
+            fig_traces.update_layout(
+                height=520, template="plotly_dark",
+                hovermode="x unified", margin=dict(l=40, r=20, t=35, b=30),
+            )
+            st.plotly_chart(fig_traces, use_container_width=True)
+
+        with c_sub3:
+            st.subheader("Activation Sequences & Latency Analysis")
+            fig_acts = go.Figure()
+
+            # Plot Baseline activations
+            for i in range(res_A.network.num_nodes):
+                node_name = res_A.network.nodes[i].name
+                t_acts_A = res_A.activations.get(i, [])
+                t_acts_B = res_B.activations.get(i, [])
+
+                if t_acts_A:
+                    fig_acts.add_trace(go.Scatter(
+                        x=t_acts_A, y=[f"{node_name} (A)"] * len(t_acts_A), mode="markers",
+                        marker=dict(size=11, color="#3b82f6", symbol="circle"),
+                        name=f"{node_name} (A)", showlegend=(i == 0)
+                    ))
+                if t_acts_B:
+                    fig_acts.add_trace(go.Scatter(
+                        x=t_acts_B, y=[f"{node_name} (B)"] * len(t_acts_B), mode="markers",
+                        marker=dict(size=11, color="#ef4444", symbol="diamond"),
+                        name=f"{node_name} (B)", showlegend=(i == 0)
+                    ))
+
+            fig_acts.update_layout(
+                title="Comparative Chamber Activation Timestamps (Blue Circles: Baseline A | Red Diamonds: Trial B)",
+                xaxis_title="Time t (model units)",
+                template="plotly_dark",
+                height=420,
+                margin=dict(l=60, r=20, t=35, b=30),
+            )
+            st.plotly_chart(fig_acts, use_container_width=True)
+
+        with c_sub4:
+            st.subheader("Activation-Derived Rhythm Waveform Comparison")
+            fig_rhythm_cmp = go.Figure()
+            fig_rhythm_cmp.add_trace(go.Scatter(
+                x=res_A.time, y=res_A.rhythm_trace, mode="lines",
+                name="Rhythm State A (Baseline)", line=dict(color="#38bdf8", width=2.0)
+            ))
+            fig_rhythm_cmp.add_trace(go.Scatter(
+                x=res_B.time, y=res_B.rhythm_trace, mode="lines",
+                name="Rhythm State B (Trial)", line=dict(color="#f43f5e", width=2.0, dash="dash")
+            ))
+            fig_rhythm_cmp.add_hline(y=0.0, line_dash="dash", line_color="#475569")
+            fig_rhythm_cmp.update_layout(
+                title="Superimposed Activation-Derived Rhythm Traces (Dipole Projection)",
+                xaxis_title="Time t (model units)", yaxis_title="Dipole Moment Φ(t)",
+                template="plotly_dark", height=350, margin=dict(l=40, r=20, t=35, b=30),
+            )
+            st.plotly_chart(fig_rhythm_cmp, use_container_width=True)
+
+        with c_sub5:
+            st.subheader("Single-Cell Phase Plane & Flow Field Comparison")
+            col_pp_A, col_pp_B = st.columns(2)
+
+            with col_pp_A:
+                st.markdown("#### 🔵 State A Phase Portrait")
+                p_cell_A = FHNParameters(a=base_params.cell_a, b=base_params.cell_b, epsilon=base_params.cell_epsilon, I=base_params.cell_I_bias)
+                v_grid_A, w_vn_A, w_wn_A = compute_nullclines((-2.5, 2.5), p_cell_A, num_points=200)
+                fig_pp_A = go.Figure()
+                fig_pp_A.add_trace(go.Scatter(x=v_grid_A, y=w_vn_A, mode="lines", name="v-nullcline", line=dict(color="#3b82f6", width=2)))
+                fig_pp_A.add_trace(go.Scatter(x=v_grid_A, y=w_wn_A, mode="lines", name="w-nullcline", line=dict(color="#f97316", width=2, dash="dash")))
+                if comp_res.single_cell_baseline_eq:
+                    eqA = comp_res.single_cell_baseline_eq
+                    fig_pp_A.add_trace(go.Scatter(
+                        x=[eqA.v_star], y=[eqA.w_star], mode="markers+text",
+                        text=[f"E* ({eqA.v_star:.2f}, {eqA.w_star:.2f})"], textposition="top right",
+                        marker=dict(size=13, color="#10b981" if eqA.is_stable else "#ef4444"), name="Fixed Point"
+                    ))
+                fig_pp_A.update_layout(title="State A Nullclines", xaxis_title="v", yaxis_title="w", template="plotly_dark", height=340)
+                st.plotly_chart(fig_pp_A, use_container_width=True)
+
+            with col_pp_B:
+                st.markdown("#### 🔴 State B Phase Portrait")
+                p_cell_B = FHNParameters(a=trial_params.cell_a, b=trial_params.cell_b, epsilon=trial_params.cell_epsilon, I=trial_params.cell_I_bias)
+                v_grid_B, w_vn_B, w_wn_B = compute_nullclines((-2.5, 2.5), p_cell_B, num_points=200)
+                fig_pp_B = go.Figure()
+                fig_pp_B.add_trace(go.Scatter(x=v_grid_B, y=w_vn_B, mode="lines", name="v-nullcline", line=dict(color="#3b82f6", width=2)))
+                fig_pp_B.add_trace(go.Scatter(x=v_grid_B, y=w_wn_B, mode="lines", name="w-nullcline", line=dict(color="#f97316", width=2, dash="dash")))
+                if comp_res.single_cell_trial_eq:
+                    eqB = comp_res.single_cell_trial_eq
+                    fig_pp_B.add_trace(go.Scatter(
+                        x=[eqB.v_star], y=[eqB.w_star], mode="markers+text",
+                        text=[f"E* ({eqB.v_star:.2f}, {eqB.w_star:.2f})"], textposition="top right",
+                        marker=dict(size=13, color="#10b981" if eqB.is_stable else "#ef4444"), name="Fixed Point"
+                    ))
+                fig_pp_B.update_layout(title="State B Nullclines", xaxis_title="v", yaxis_title="w", template="plotly_dark", height=340)
+                st.plotly_chart(fig_pp_B, use_container_width=True)
+
+    # -------------------------------------------------------------------------
+    # TAB 2: AUTOMATED PARAMETER SWEEP ENGINE
+    # -------------------------------------------------------------------------
+    with tab_exp_sweep:
+        st.subheader("Automated Parameter Sweep & Bifurcation Explorer")
+        st.caption("Continuously sweeps a selected electrophysiological parameter across user-defined bounds, calculating conduction latency, activation rates, and stability transitions.")
+
+        sweep_col1, sweep_col2, sweep_col3, sweep_col4 = st.columns(4)
+
+        with sweep_col1:
+            sweep_param_choice = st.selectbox(
+                "Select Parameter to Sweep:",
+                [
+                    "AV Nodal Conductance (g_AV)",
+                    "Global Electrical Coupling (D)",
+                    "SA Pacing Interval (T_pace)",
+                    "Stimulus Current Amplitude (I)",
+                    "Cellular Recovery Timescale (ε)",
+                    "Excitability Parameter a",
+                    "Regional AVN Timescale (ε_AVN)",
+                    "Regional Ventricle Timescale (ε_Vent)",
+                ],
+                key="sweep_param_choice"
+            )
+            param_key_map = {
+                "AV Nodal Conductance (g_AV)": "av_conductance",
+                "Global Electrical Coupling (D)": "D",
+                "SA Pacing Interval (T_pace)": "pacing_interval",
+                "Stimulus Current Amplitude (I)": "I",
+                "Cellular Recovery Timescale (ε)": "epsilon",
+                "Excitability Parameter a": "a",
+                "Regional AVN Timescale (ε_AVN)": "region_avn_eps",
+                "Regional Ventricle Timescale (ε_Vent)": "region_vent_eps",
+            }
+            sweep_key = param_key_map[sweep_param_choice]
+
+        # Suggested default ranges
+        default_ranges = {
+            "av_conductance": (0.00, 0.40),
+            "D": (0.10, 1.20),
+            "pacing_interval": (30.0, 85.0),
+            "I": (0.8, 2.5),
+            "epsilon": (0.02, 0.20),
+            "a": (0.3, 1.0),
+            "region_avn_eps": (0.02, 0.12),
+            "region_vent_eps": (0.03, 0.12),
+        }
+        def_min, def_max = default_ranges.get(sweep_key, (0.0, 1.0))
+
+        with sweep_col2:
+            sweep_min = st.number_input("Sweep Range Min", value=float(def_min), step=0.05, key="sweep_min")
+        with sweep_col3:
+            sweep_max = st.number_input("Sweep Range Max", value=float(def_max), step=0.05, key="sweep_max")
+        with sweep_col4:
+            sweep_steps = st.slider("Resolution (Steps)", 6, 25, 12, 1, key="sweep_steps")
+
+        if st.button("🚀 Execute Multi-Point Parameter Sweep", key="btn_run_sweep", use_container_width=True):
+            sweep_cfg = ParameterSweepConfig(
+                parameter_name=sweep_key,
+                range_min=float(sweep_min),
+                range_max=float(sweep_max),
+                num_steps=int(sweep_steps),
+                base_params=base_params,
+            )
+            with st.spinner("Executing numerical ODE integrations across parameter range..."):
+                pts, sweep_summary = run_parameter_sweep(sweep_cfg)
+
+            st.session_state.last_sweep_points = pts
+            st.session_state.last_sweep_summary = sweep_summary
+            st.session_state.last_sweep_key = sweep_key
+            st.session_state.last_sweep_name = sweep_param_choice
+
+        # Display Sweep Results if available
+        if "last_sweep_points" in st.session_state:
+            pts = st.session_state.last_sweep_points
+            s_sum = st.session_state.last_sweep_summary
+            s_key = st.session_state.last_sweep_key
+            s_name = st.session_state.last_sweep_name
+
+            st.info(f"💡 {s_sum}")
+
+            # 4 Outcome Charts
+            sw_colA, sw_colB = st.columns(2)
+
+            param_vals = [p.param_value for p in pts]
+            bpm_vals = [p.bpm if p.bpm is not None else 0.0 for p in pts]
+            lat_vals = [p.san_to_vent_latency if p.san_to_vent_latency is not None else 0.0 for p in pts]
+            drops_vals = [p.conduction_drops for p in pts]
+            vstar_vals = [p.equilibrium_v_star for p in pts]
+
+            with sw_colA:
+                # Chart 1: Ventricular Rate vs Parameter
+                fig_sw1 = go.Figure()
+                fig_sw1.add_trace(go.Scatter(
+                    x=param_vals, y=bpm_vals, mode="lines+markers",
+                    name="Ventricular BPM", line=dict(color="#38bdf8", width=2.5),
+                    marker=dict(size=8, color="#0284c7")
+                ))
+                fig_sw1.update_layout(
+                    title=f"Ventricular Rate (BPM) vs {s_name}",
+                    xaxis_title=s_name, yaxis_title="Heart Rate (BPM)",
+                    template="plotly_dark", height=320, margin=dict(l=40, r=20, t=35, b=30),
+                )
+                st.plotly_chart(fig_sw1, use_container_width=True)
+
+                # Chart 3: Conduction Drops / Failures vs Parameter
+                fig_sw3 = go.Figure()
+                fig_sw3.add_trace(go.Bar(
+                    x=param_vals, y=drops_vals, name="Conduction Drops",
+                    marker_color=["#ef4444" if d > 0 else "#10b981" for d in drops_vals]
+                ))
+                fig_sw3.update_layout(
+                    title=f"Conduction Block / Drop Count vs {s_name}",
+                    xaxis_title=s_name, yaxis_title="Dropped Activations Count",
+                    template="plotly_dark", height=320, margin=dict(l=40, r=20, t=35, b=30),
+                )
+                st.plotly_chart(fig_sw3, use_container_width=True)
+
+            with sw_colB:
+                # Chart 2: Conduction Latency vs Parameter
+                fig_sw2 = go.Figure()
+                fig_sw2.add_trace(go.Scatter(
+                    x=param_vals, y=lat_vals, mode="lines+markers",
+                    name="Conduction Latency (Δt)", line=dict(color="#f59e0b", width=2.5),
+                    marker=dict(size=8, color="#d97706")
+                ))
+                fig_sw2.update_layout(
+                    title=f"SAN-to-Ventricle Latency vs {s_name}",
+                    xaxis_title=s_name, yaxis_title="Transit Time (model units)",
+                    template="plotly_dark", height=320, margin=dict(l=40, r=20, t=35, b=30),
+                )
+                st.plotly_chart(fig_sw2, use_container_width=True)
+
+                # Chart 4: Single-cell Equilibrium v* vs Parameter
+                fig_sw4 = go.Figure()
+                fig_sw4.add_trace(go.Scatter(
+                    x=param_vals, y=vstar_vals, mode="lines+markers",
+                    name="Equilibrium Voltage v*", line=dict(color="#a855f7", width=2.5),
+                    marker=dict(size=8, color="#7e22ce")
+                ))
+                fig_sw4.update_layout(
+                    title=f"Cellular Equilibrium Potential v* vs {s_name}",
+                    xaxis_title=s_name, yaxis_title="Equilibrium Potential v*",
+                    template="plotly_dark", height=320, margin=dict(l=40, r=20, t=35, b=30),
+                )
+                st.plotly_chart(fig_sw4, use_container_width=True)
+
+            # Sweep Data Table & Download
+            st.subheader("Tabular Parameter Sweep Dataset")
+            sweep_csv_data = export_sweep_to_csv(pts, s_key)
+            df_sw_view = pd.read_csv(io.StringIO(sweep_csv_data))
+            st.dataframe(df_sw_view, use_container_width=True)
+
+            st.download_button(
+                label="📥 Download Parameter Sweep Data as CSV",
+                data=sweep_csv_data,
+                file_name=f"cardiac_sweep_{s_key}.csv",
+                mime="text/csv",
+            )
 
 
 # =============================================================================

@@ -156,8 +156,13 @@ python -m streamlit run app.py
    - Deep dive into scenarios 1–6 with synchronized membrane potentials across all 6 compartments, numerical activation event logs with CSV export, and Einthoven Lead II far-field dipole projections.
 3. **🔬 Mathematical Analysis Laboratory:**
    - Single-cell analysis suite featuring Parts A–F: Nullclines, Cardano equilibrium roots with verified residuals ($< 10^{-12}$), analytical Jacobian, Poincaré classification, normalized flow field explorer, and multi-parameter sweeps ($I, \varepsilon, a, b$).
-4. **⚖️ Parameter Experiment Lab:**
-   - Controlled sandbox allowing side-by-side comparative simulation runs (Condition A vs Condition B) with full parameter delta tables and comparative graphs.
+4. **⚖️ Parameter Experiment Lab (Stage 8):**
+   - **Controlled Experiment Mode:** Rigorous 6-step workflow (Select baseline ➔ Run simulation ➔ Save baseline ➔ Modify parameter ➔ Run trial ➔ Compare results).
+   - **Supported Parameters:** External current $I$, recovery parameter $\varepsilon$, parameters $a$ and $b$, electrical coupling $D$, SA pacing interval $T_{\text{pace}}$, AV conductance $g_{\text{AV}}$, and regional parameters ($\varepsilon_{\text{AVN}}, \varepsilon_{\text{Vent}}$).
+   - **Side-by-Side Comparisons:** Activation sequences, latency transit times, missing/successful activations, $v(t)$ and $w(t)$ traces, activation-derived rhythm waveforms $\Phi(t)$, and standalone FHN cell equilibrium/stability.
+   - **Automated Parameter Sweep Engine:** Multi-point sweeps across selectable bounds and resolutions with 4 outcome charts (Ventricular Rate BPM, SAN-to-Ventricle Latency, Conduction Drops, Equilibrium $v^*$).
+   - **Downloadable CSV Datasets:** Export full comparison tables and sweep metrics as CSV files.
+   - **Scientifically Grounded Interpretation:** Dynamically distinguishes physiological conduction preservation from genuine conduction blocks and rate transitions.
 5. **📖 About the Model:**
    - Comprehensive academic documentation explaining equations, variables, coupled network extensions, assumptions, limitations, and the distinction between a reduced simulation and a real human heart.
    - Conduction failure alerts and regional latency measurements.
@@ -200,7 +205,7 @@ python -m streamlit run app.py
    ```powershell
    python run_cli.py --scenario reentry
    ```
-10. **Run Complete Automated Unit Test Suite (53 Tests):**
+10. **Run Complete Automated Unit Test Suite (64 Tests):**
     ```powershell
     python -m pytest tests -v
     ```

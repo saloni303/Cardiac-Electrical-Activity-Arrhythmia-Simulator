@@ -64,6 +64,18 @@ from .laboratory import (
     analyze_bifurcation_conditions,
     compare_fhn_states,
 )
+from .experiments import (
+    ExperimentParameters,
+    ExperimentComparisonResult,
+    ParameterSweepPoint,
+    ParameterSweepConfig,
+    build_experiment_network,
+    run_experiment_simulation,
+    compare_experiments,
+    run_parameter_sweep,
+    export_comparison_to_csv,
+    export_sweep_to_csv,
+)
 
 __all__ = [
     # Stage 1: Single-cell
@@ -119,4 +131,15 @@ __all__ = [
     "sweep_parameter_b",
     "analyze_bifurcation_conditions",
     "compare_fhn_states",
+    # Stage 8: Parameter Experiment Laboratory
+    "ExperimentParameters",
+    "ExperimentComparisonResult",
+    "ParameterSweepPoint",
+    "ParameterSweepConfig",
+    "build_experiment_network",
+    "run_experiment_simulation",
+    "compare_experiments",
+    "run_parameter_sweep",
+    "export_comparison_to_csv",
+    "export_sweep_to_csv",
 ]
